@@ -19,6 +19,7 @@ OUT = ROOT / "_site"
 SITE = "https://secondquery.com"
 EMAIL = "sam@secondquery.com"
 BRAND = "Second Query"
+INDEXNOW_KEY = "d325655dfe07893a98583443d7d61935"  # public by design: proves to Bing/IndexNow that this site owns its pings
 
 SEARCH_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>'
 MARK = ('<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="13.5" cy="13.5" r="9.5" fill="none" stroke="currentColor" stroke-width="3"/>'
@@ -50,17 +51,54 @@ def query_bar(q, extra=""):
             f'<span class="typed">{html.escape(q)}</span><span class="caret"></span>{extra}</div>')
 
 
-def layout(title, description, path, body, nav_key="", extra_head=""):
+def faq_schema(body):
+    qs = re.findall(r"<summary>(.*?)</summary>\s*<div class=\"ans\">(.*?)</div>", body, re.S)
+    if not qs:
+        return ""
+    strip = lambda s: html.unescape(re.sub(r"<[^>]+>", "", s)).strip()
+    data = {"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [
+        {"@type": "Question", "name": strip(q), "acceptedAnswer": {"@type": "Answer", "text": strip(a)}} for q, a in qs]}
+    return f'<script type="application/ld+json">{json.dumps(data)}</script>'
+
+
+def breadcrumb_schema(path, title):
+    if path in ("/", "/404"):
+        return ""
+    items = [{"@type": "ListItem", "position": 1, "name": BRAND, "item": SITE + "/"}]
+    if path.startswith("/insights/") and path != "/insights/":
+        items.append({"@type": "ListItem", "position": 2, "name": "Insights", "item": SITE + "/insights/"})
+    items.append({"@type": "ListItem", "position": len(items) + 1, "name": title, "item": SITE + path})
+    return f'<script type="application/ld+json">{json.dumps({"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": items})}</script>'
+
+
+def person_schema():
+    p = {"@context": "https://schema.org", "@type": "Person", "name": "Sam Hitchmough", "jobTitle": "Founder, Second Query",
+         "worksFor": {"@id": SITE + "/#business"}, "url": SITE + "/about/",
+         "knowsAbout": ["Google Ads", "Microsoft Advertising", "Paid search strategy", "Performance Max", "Smart Bidding"]}
+    return f'<script type="application/ld+json">{json.dumps(p)}</script>'
+
+
+def layout(title, description, path, body, nav_key="", extra_head="", seo_title=""):
     canonical = SITE + path
-    full_title = f"{title} | {BRAND}" if title != BRAND else f"{BRAND} - independent Google Ads advice"
+    full_title = seo_title or (f"{title} | {BRAND}" if title != BRAND else f"{BRAND} - independent Google Ads advice")
+    if not seo_title and len(full_title) > 65:
+        full_title = title  # long headlines read better in results without the brand suffix
     nav_links = "".join(
         f'<a href="{href}"{" aria-current=page" if key == nav_key else ""}>{label}</a>' for key, href, label in NAV)
     year = dt.date.today().year
     org = {
-        "@context": "https://schema.org", "@type": "ProfessionalService", "name": BRAND,
-        "url": SITE, "email": EMAIL, "areaServed": "GB",
-        "description": "Independent senior Google Ads advice for UK businesses facing a big paid search decision.",
-        "founder": {"@type": "Person", "name": "Sam Hitchmough"}}
+        "@context": "https://schema.org", "@type": "ProfessionalService", "@id": SITE + "/#business", "name": BRAND,
+        "url": SITE + "/", "email": EMAIL, "areaServed": {"@type": "Country", "name": "United Kingdom"},
+        "logo": SITE + "/static/email-logo.png", "image": SITE + "/static/og-image.png", "priceRange": "£295 - £1,750",
+        "description": "Independent, senior Google Ads and Microsoft Advertising consultancy for UK businesses: account reviews, audits and strategic advice, without account management.",
+        "knowsAbout": ["Google Ads", "Microsoft Advertising", "Pay-per-click advertising", "Performance Max", "Smart Bidding", "Paid search strategy"],
+        "founder": {"@type": "Person", "name": "Sam Hitchmough", "jobTitle": "Founder"},
+        "hasOfferCatalog": {"@type": "OfferCatalog", "name": "Paid search advisory services", "itemListElement": [
+            {"@type": "Offer", "name": "Strategy consultation", "price": "295", "priceCurrency": "GBP", "url": SITE + "/services/#consultation"},
+            {"@type": "Offer", "name": "Focused Review", "price": "795", "priceCurrency": "GBP", "url": SITE + "/services/#focused"},
+            {"@type": "Offer", "name": "Paid Search Decision Review", "price": "1750", "priceCurrency": "GBP", "url": SITE + "/services/#review"},
+            {"@type": "Offer", "name": "Strategic advisory (monthly)", "price": "1500", "priceCurrency": "GBP", "url": SITE + "/services/#advisory"}]}}
+    site_ld = {"@context": "https://schema.org", "@type": "WebSite", "name": BRAND, "url": SITE + "/", "publisher": {"@id": SITE + "/#business"}}
     return f"""<!DOCTYPE html>
 <html lang="en-GB">
 <head>
@@ -74,7 +112,12 @@ def layout(title, description, path, body, nav_key="", extra_head=""):
 <meta property="og:url" content="{canonical}">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="{BRAND}">
-<meta name="twitter:card" content="summary">
+<meta property="og:locale" content="en_GB">
+<meta property="og:image" content="{SITE}/static/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="{SITE}/static/og-image.png">
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="alternate" type="application/rss+xml" title="{BRAND} insights" href="/feed.xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -82,6 +125,9 @@ def layout(title, description, path, body, nav_key="", extra_head=""):
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/styles.css">
 <script type="application/ld+json">{json.dumps(org)}</script>
+<script type="application/ld+json">{json.dumps(site_ld)}</script>
+{breadcrumb_schema(path, title)}
+{faq_schema(body)}
 {extra_head}
 </head>
 <body>
@@ -104,14 +150,15 @@ def layout(title, description, path, body, nav_key="", extra_head=""):
         <p style="margin-top:14px;max-width:34ch">Independent Google Ads advice for UK businesses, before the decisions that cost the most. Strategy only.</p>
         <p><a href="mailto:{EMAIL}">{EMAIL}</a></p>
       </div>
-      <div><h4>Services</h4><ul><li><a href="/services/#consultation">Strategy consultation</a></li><li><a href="/services/#review">Decision Review</a></li><li><a href="/services/#advisory">Strategic advisory</a></li></ul></div>
+      <div><h4>Services</h4><ul><li><a href="/services/#consultation">Strategy consultation</a></li><li><a href="/services/#focused">Focused Review</a></li><li><a href="/services/#review">Decision Review</a></li><li><a href="/services/#advisory">Strategic advisory</a></li><li><a href="/google-ads-audit/">Google Ads audit</a></li><li><a href="/google-ads-agency-review/">Agency review</a></li></ul></div>
       <div><h4>Free tools</h4><ul><li><a href="/tools/">Account X-ray</a></li><li><a href="/tools/#learning-clock">Learning clock</a></li><li><a href="/approach/#budgetgame">Next £20k game</a></li><li><a href="/insights/">Insights</a></li></ul></div>
       <div><h4>Second Query</h4><ul><li><a href="/about/">About</a></li><li><a href="/contact/">Contact</a></li><li><a href="/privacy/">Privacy notice</a></li></ul></div>
     </div>
-    <div class="legal"><span>&copy; {year} Second Query, the trading name of Sam Hitchmough.</span><span>No cookies, no tracking, no sponsored results.</span></div>
+    <div class="legal"><span>&copy; {year} Second Query, the trading name of Sam Hitchmough.</span><span>No cookies, no ad tracking, no sponsored results.</span></div>
   </div>
 </footer>
 <script src="/static/main.js" defer></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{{"token": "346c7f733de54d3990c2b51f44a9e8d7"}}'></script>
 </body>
 </html>
 """
@@ -135,6 +182,7 @@ def load_posts():
             "slug": f.stem[11:] if re.match(r"\d{4}-\d{2}-\d{2}-", f.stem) else f.stem,
             "title": meta["title"], "description": meta["description"], "date": date,
             "tags": tags, "sources": meta.get("sources", []) or [], "query": meta.get("query", meta["title"].lower()),
+            "updated": dt.date.fromisoformat(meta["updated"]) if meta.get("updated") else None, "seo_title": meta.get("seo_title", ""),
             "html": md.convert(body), "minutes": max(2, round(words / 220))})
     posts.sort(key=lambda p: (p["date"], p["title"]), reverse=True)
     return posts
@@ -185,7 +233,8 @@ def build():
         body = re.sub(r"\{\{query:(.+?)\}\}", lambda m: query_bar(m.group(1)), body)
         path = meta["path"]
         write(path if path != "/404.html" else "404.html",
-              layout(meta["title"], meta["description"], path if path != "/404.html" else "/404", body, meta.get("nav", "")))
+              layout(meta["title"], meta["description"], path if path != "/404.html" else "/404", body, meta.get("nav", ""),
+                     person_schema() if path == "/about/" else "", meta.get("seo_title", "")))
         if path != "/404.html":
             urls.append((path, dt.date.today()))
 
@@ -215,11 +264,13 @@ def build():
   </div>
 </div>"""
         ld = {"@context": "https://schema.org", "@type": "BlogPosting", "headline": p["title"], "description": p["description"],
-              "datePublished": p["date"].isoformat(), "author": {"@type": "Person", "name": "Sam Hitchmough"},
-              "publisher": {"@type": "Organization", "name": BRAND}, "mainEntityOfPage": f'{SITE}/insights/{p["slug"]}/'}
+              "datePublished": p["date"].isoformat(),
+              "dateModified": (p.get("updated") or p["date"]).isoformat(), "image": SITE + "/static/og-image.png", "inLanguage": "en-GB",
+              "author": {"@type": "Person", "name": "Sam Hitchmough", "url": SITE + "/about/"},
+              "publisher": {"@id": SITE + "/#business"}, "mainEntityOfPage": f'{SITE}/insights/{p["slug"]}/'}
         write(f'/insights/{p["slug"]}/', layout(p["title"], p["description"], f'/insights/{p["slug"]}/', article, "insights",
-                                                 f'<script type="application/ld+json">{json.dumps(ld)}</script>'))
-        urls.append((f'/insights/{p["slug"]}/', p["date"]))
+                                                 f'<script type="application/ld+json">{json.dumps(ld)}</script>', p["seo_title"]))
+        urls.append((f'/insights/{p["slug"]}/', p["updated"] or p["date"]))
 
     items = "".join(
         f"""<item><title>{html.escape(p["title"])}</title><link>{SITE}/insights/{p["slug"]}/</link><guid>{SITE}/insights/{p["slug"]}/</guid>
@@ -232,6 +283,7 @@ def build():
                                      "".join(f"<url><loc>{SITE}{u}</loc><lastmod>{d.isoformat()}</lastmod></url>" for u, d in urls) + "</urlset>", encoding="utf-8")
     (OUT / "robots.txt").write_text(f"User-agent: *\nAllow: /\nSitemap: {SITE}/sitemap.xml\n", encoding="utf-8")
     (OUT / "CNAME").write_text("secondquery.com\n", encoding="utf-8")
+    (OUT / f"{INDEXNOW_KEY}.txt").write_text(INDEXNOW_KEY, encoding="utf-8")
     (OUT / ".nojekyll").write_text("", encoding="utf-8")
     print(f"Built {len(urls)} pages and {len(posts)} posts into {OUT}")
 

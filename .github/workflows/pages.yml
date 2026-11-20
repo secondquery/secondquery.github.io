@@ -38,3 +38,18 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  indexnow:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Tell Bing (IndexNow) which pages changed
+        run: |
+          KEY=$(grep -oP 'INDEXNOW_KEY = "\K[0-9a-f]+' build.py)
+          URLS=$(curl -s https://secondquery.com/sitemap.xml | grep -oP '<loc>\K[^<]+' | head -100)
+          [ -z "$URLS" ] && exit 0
+          JSON=$(printf '%s\n' $URLS | python3 -c "import sys,json;print(json.dumps({'host':'secondquery.com','key':'$KEY','keyLocation':'https://secondquery.com/$KEY.txt','urlList':[l.strip() for l in sys.stdin if l.strip()]}))")
+          curl -s -o /dev/null -w "IndexNow: %{http_code}\n" -X POST https://api.indexnow.org/indexnow -H "Content-Type: application/json; charset=utf-8" -d "$JSON" || true
