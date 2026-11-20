@@ -597,7 +597,7 @@
     const xl = [0, Math.floor((n - 1) / 2), n - 1].map(i => `<span style="left:${(i + 0.5) * bw}%">${esc(pts[i].label)}</span>`).join('');
     let marks = '';
     if (kind === 'col') {
-      marks = pts.map((p, i) => `<span class="col" style="left:${(i * bw + bw * 0.18).toFixed(3)}%;width:${(bw * 0.64).toFixed(3)}%;height:${(Math.max(0, p.v) / max * 100).toFixed(2)}%;background:var(${color})" ${tipAttr(fmtTip(p))}></span>`).join('');
+      marks = pts.map((p, i) => `<span class="pcol" style="left:${(i * bw + bw * 0.18).toFixed(3)}%;width:${(bw * 0.64).toFixed(3)}%;height:${(Math.max(0, p.v) / max * 100).toFixed(2)}%;background:var(${color})" ${tipAttr(fmtTip(p))}></span>`).join('');
     } else {
       const xy = pts.map((p, i) => isFinite(p.v) ? `${((i + 0.5) * bw).toFixed(3)},${(100 - p.v / max * 100).toFixed(3)}` : null);
       const segs = []; let cur = [];
@@ -733,14 +733,7 @@
         const m = topZero[0].cost;
         cards.push(card('The searches costing most with nothing to show', 'Search terms with spend but no conversions, by spend. Worth checking against your negative keywords.',
           hbars(topZero.map(x => ({ label: x.term, w: x.cost / m, c: '--hl', val: gbp(x.cost), tip: `"${x.term}" · ${gbp(x.cost)} · no conversions` }))),
-          tbl(['Search term', 'Spend', 'Conversions'], topZero.map(x => [x.term, gbp(x.cost), '0']))));
-      }
-      const topConv = T.list.filter(x => x.conv >= 0.5).sort((a, b) => b.conv - a.conv).slice(0, 8);
-      if (topConv.length >= 2) {
-        const m = topConv[0].conv;
-        cards.push(card('The searches bringing in the most conversions', 'Search terms by reported conversions. Brand searches are in blue.',
-          hbars(topConv.map(x => ({ label: x.term, w: x.conv / m, c: isBrandTerm(x.term) ? '--c1' : '--c2', val: int(x.conv), tip: `"${x.term}" · ${int(x.conv)} conversions · ${gbp(x.cost)}` }))) + legend([{ c: '--c1', label: 'Brand' }, { c: '--c2', label: 'Non-brand' }].filter(l => topConv.some(x => (l.c === '--c1') === isBrandTerm(x.term)))),
-          tbl(['Search term', 'Conversions', 'Spend'], topConv.map(x => [x.term, int(x.conv), gbp(x.cost)]))));
+          tbl(['Search term', 'Spend', 'Conversions'], topZero.map(x => [x.term, gbp(x.cost), '0'])), true));
       }
     }
     return { tiles, html: cards.join('') };
@@ -762,6 +755,10 @@
   out.addEventListener('mouseleave', () => { tip.hidden = true; });
   out.addEventListener('focusin', e => { const el = e.target.closest('[data-tip]'); if (!el) return; const b = el.getBoundingClientRect(); showTip(el, b.left + b.width / 2, b.top); });
   out.addEventListener('focusout', () => { tip.hidden = true; });
+
+  // hide in-bar labels that don't fit their segment (they stay in the tooltip and table view)
+  const fitLabels = () => root.querySelectorAll('.segp b').forEach(b => { b.style.visibility = ''; if (b.offsetWidth + 12 > b.parentElement.clientWidth) b.style.visibility = 'hidden'; });
+  let fitT; window.addEventListener('resize', () => { clearTimeout(fitT); fitT = setTimeout(fitLabels, 150); });
 
   /* ---------- rendering ---------- */
   const readCheck = (t, a, kind) => {
@@ -798,6 +795,7 @@
     const D = renderDash(C, T);
     $('#xr-tiles').innerHTML = D.tiles.map(t => `<div class="xtile"><span>${esc(t.l)}</span><b>${esc(t.v)}</b>${t.n ? `<small>${esc(t.n)}</small>` : ''}</div>`).join('');
     $('#xr-dash').innerHTML = D.html;
+    fitLabels();
     const tiles = D.tiles.map(t => [t.l, t.v]);
     const period = (C && C.periodLabel) || (state.raw_t && state.raw_t.dateLine) || '';
     $('#xr-period').textContent = period ? 'Reporting period: ' + period : 'Reporting period: not stated in the file';
@@ -808,6 +806,13 @@
       : `<article class="obs"><h3>Nothing dramatic stands out</h3><p>On the numbers in this file, the account looks fairly balanced. That's useful to know, and it usually means the more interesting questions sit beneath the campaign level: search terms, bidding and how results are measured.</p></article>`;
     $('#xr-obs').innerHTML = obs;
 
+    // executive summary: one line on the whole account, then the headline of each observation
+    const lead = C
+      ? `${gbp(C.cost)} spent across ${int(C.n)} campaign${C.n === 1 ? '' : 's'}, bringing in ${C.useValue ? `${gbp(C.value)} of conversion value, a ${(C.value / C.cost).toFixed(2)}x return` : `${int(C.conv)} conversions at ${C.conv ? gbp2(C.cost / C.conv) : '-'} each`}.`
+      : `${gbp(T.cost)} of search term spend across ${int(T.n)} searches, with ${int(T.conv)} conversions.`;
+    const points = picks.length ? picks.map(p => ({ h: p.head.replace(/\.$/, ''), m: (p.metrics || []).join(' · ') })) : [{ h: 'Nothing dramatic stands out on these numbers', m: '' }];
+    $('#xr-sum').innerHTML = `<h2>The short version</h2><p class="xlead">${esc(lead)}</p><ul>${points.map(p => `<li><b>${esc(p.h)}.</b>${p.m ? ` <span>${esc(p.m)}</span>` : ''}</li>`).join('')}</ul>`;
+
     let how = '';
     if (C) how += readCheck(state.raw_c, C, 'campaigns');
     if (T) how += readCheck(state.raw_t, T, 'terms');
@@ -815,31 +820,15 @@
     $('#xr-how').innerHTML = how;
 
     $('#xr-label').textContent = state.sample ? 'Sample data' : (state.names.join(' + ') || 'Your account');
-    const text = ['Second Query Account X-ray' + (state.sample ? ' (sample data)' : ''), period ? 'Period: ' + period : '', tiles.map(t => `${t[0]}: ${t[1]}`).join(' | '), '', 'What caught our attention:', ...picks.map((p, i) => `${i + 1}. ${p.head} (${(p.metrics || []).join('; ')}). ${p.text}`)].filter(x => x !== null).join('\n');
+    const text = ['Second Query Account X-ray' + (state.sample ? ' (sample data)' : ''), period ? 'Period: ' + period : '', lead, tiles.map(t => `${t[0]}: ${t[1]}`).join(' | '), '', 'What caught our attention:', ...picks.map((p, i) => `${i + 1}. ${p.head} (${(p.metrics || []).join('; ')}). ${p.text}`)].filter(x => x !== null).join('\n');
     state.summary = text;
     $('#xr-talk').href = 'mailto:sam@secondquery.com?subject=' + encodeURIComponent('Account X-ray results') + '&body=' + encodeURIComponent(text + '\n\nWhat I would like to understand better:\n');
-    state.aiPayload = buildAiPayload(C, T, period, picks);
     document.dispatchEvent(new CustomEvent('xray:ready'));
     out.hidden = false;
     reset.hidden = false;
     if (!state.fromBrand) out.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
     state.fromBrand = false;
   };
-
-  /* a compact, aggregated summary for the optional AI read (never the raw file) */
-  const buildAiPayload = (C, T, period, picks) => ({
-    period,
-    platform: state.names.join(' + '),
-    currency: 'GBP',
-    totals: C ? { spend: Math.round(C.cost), conversions: Math.round(C.conv), conversionValue: Math.round(C.value), campaigns: C.n } : { spend: Math.round(T.cost), conversions: Math.round(T.conv), searchTerms: T.n },
-    campaigns: C ? C.list.slice().sort((a, b) => b.cost - a.cost).slice(0, 40).map(x => ({
-      name: x.name, channel: x.channel, likelyPurpose: x.intent, confidence: x.conf, spend: Math.round(x.cost), conversions: Math.round(x.conv * 10) / 10,
-      conversionValue: Math.round(x.value), lostISBudget: isFinite(x.lost) ? Math.round(x.lost) : null, lostISRank: isFinite(x.rank) ? Math.round(x.rank) : null, isApprox: x.isApprox
-    })) : [],
-    trend: C && C.dates.length >= 14 ? { days: C.dates.length } : null,
-    searchTerms: T ? { spend: Math.round(T.cost), zeroConversionSpendShare: Math.round(T.zeroCost / T.cost * 100), longQueryShare: Math.round(T.longCost / T.cost * 100), questionShare: Math.round(T.qCost / T.cost * 100) } : null,
-    ruleBasedObservations: picks.map(p => p.head)
-  });
 
   const ingest = (text, name) => {
     const t = readTable(text);
@@ -926,7 +915,6 @@
     catch (e) { status.textContent = 'Copy is blocked in this browser.'; }
   });
 
-  window.SQXray = { get payload() { return state.aiPayload; }, get summary() { return state.summary; } };
 
   /* ---------- sample data (a made-up homeware retailer, Google Ads format) ---------- */
   const SAMPLE_CAMPAIGNS = `Campaign performance report
@@ -1021,30 +1009,4 @@ Total: Search terms,,,,,"112,401","3,074,790","91,511.70","2,643.00","504,180.00
     try { await navigator.clipboard.writeText(el.textContent); b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1600); }
     catch (e) { b.textContent = 'Select and copy'; }
   }));
-})();
-
-/* Optional AI read: only shown once an endpoint is configured in /static/ai-config.json */
-(() => {
-  const box = document.getElementById('xr-ai');
-  if (!box) return;
-  const ok = document.getElementById('xr-ai-ok'), go = document.getElementById('xr-ai-go'), st = document.getElementById('xr-ai-status'), out = document.getElementById('xr-ai-out');
-  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  let endpoint = '';
-  const ready = fetch('/static/ai-config.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : {}).then(j => { endpoint = (j && j.endpoint) || ''; }).catch(() => {});
-  document.addEventListener('xray:ready', () => ready.then(() => { box.hidden = !endpoint; out.innerHTML = ''; st.textContent = ''; }));
-  document.addEventListener('xray:reset', () => { box.hidden = true; out.innerHTML = ''; ok.checked = false; go.disabled = true; });
-  ok.addEventListener('change', () => { go.disabled = !ok.checked; });
-  go.addEventListener('click', async () => {
-    if (!ok.checked || !window.SQXray || !window.SQXray.payload) return;
-    go.disabled = true; st.textContent = 'Asking the AI… this usually takes 10 to 20 seconds.'; out.innerHTML = '';
-    try {
-      const r = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ payload: window.SQXray.payload }) });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || 'Something went wrong');
-      out.innerHTML = (j.observations || []).map(o => `<article class="obs"><h3>${esc(o.heading)}</h3>${o.metrics && o.metrics.length ? `<div class="obsm">${o.metrics.map(m => `<span>${esc(m)}</span>`).join('')}</div>` : ''}<p>${esc(o.text)}</p></article>`).join('') + (j.closing ? `<p class="xhelp" style="margin-top:12px">${esc(j.closing)}</p>` : '') + '<p class="obsnote" style="margin-top:8px">Written by AI (Google\'s Gemma model, run by Cloudflare) from the summary above. AI can get things wrong, so treat this as a starting point.</p>';
-      st.textContent = '';
-    } catch (e) {
-      st.textContent = e.message || 'Something went wrong. Please try again later.';
-    } finally { go.disabled = !ok.checked; }
-  });
 })();

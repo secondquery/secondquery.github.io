@@ -99,7 +99,7 @@ nav: tools
             <small>CSV, TSV or Microsoft .zip (CSV) reports from Google Ads or Microsoft Advertising</small>
           </label>
           <div class="xactions"><button class="btn ghost" type="button" id="xr-sample">Try it with sample data</button><button class="linkish" type="button" id="xr-reset" hidden>Clear and start again</button></div>
-          <p class="xprivacy"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Your file is read by your browser and never leaves this page. Nothing is uploaded, stored or sent, unless you choose the optional AI read, which sends only a summary. Close the tab and it's gone.</p>
+          <p class="xprivacy"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Your file is read by your browser and never leaves this page. Nothing is uploaded, stored or sent. Close the tab and it's gone.</p>
           <p class="xreviewed">Rules reviewed monthly against Google Ads and Microsoft Advertising guidance. Last review: <b data-rules-reviewed>20 November 2026</b>.</p>
           <p class="xstatus" id="xr-status" role="status" aria-live="polite"></p>
         </div>
@@ -111,17 +111,12 @@ nav: tools
         <div><span class="tag" id="xr-label">Your account</span><h2 style="margin-top:10px">Your account at a glance</h2><p class="xperiod" id="xr-period"></p></div>
         <div class="xbtns"><button class="btn ghost" type="button" id="xr-copy">Copy summary</button><a class="btn ghost" id="xr-talk" href="/contact/">Email me these results</a></div>
       </div>
+      <div class="xsum" id="xr-sum"></div>
       <div class="xtiles" id="xr-tiles"></div>
       <div class="xdash" id="xr-dash"></div>
       <h2 class="obshead">What caught our attention</h2>
+      <p class="xhelp obsintro">The detail behind the short version. These are prompts to look closer, not conclusions: a campaign export can't see margins, lead quality or attribution.</p>
       <div class="obsgrid" id="xr-obs"></div>
-
-      <div class="aibox" id="xr-ai" hidden>
-        <div class="aihead"><div><span class="tag">Optional</span><h3>Want a written read from AI?</h3><p class="xhelp">An AI model (Google's Gemma, run by Cloudflare) writes a short commentary on the same patterns, following the same rules. Only a summary is sent: campaign names, channels and totals, never your file. Nothing is stored.</p></div></div>
-        <label class="aiconsent"><input type="checkbox" id="xr-ai-ok"> Send the summary to the AI for a written read</label>
-        <div class="xactions"><button class="btn" type="button" id="xr-ai-go" disabled>Analyse with AI</button><span class="xhelp" id="xr-ai-status" role="status" aria-live="polite"></span></div>
-        <div id="xr-ai-out"></div>
-      </div>
 
       <div class="surface">
         <div>
