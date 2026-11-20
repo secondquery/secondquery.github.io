@@ -39,7 +39,7 @@ Build one per run, or substantially improve an existing page if that's the bette
 3. `/bringing-ppc-in-house/` - bringing ppc in-house; in-house vs agency google ads. A practical guide with a checklist.
 4. `/google-ads-for-small-business/` - google ads help for small business uk. Ties to the £295 consultation and Focused Review.
 5. `/should-you-bid-on-your-brand/` - should I bid on my own brand name in google ads. Include a small interactive estimate.
-6. `/google-ads-budget/` - how much should I spend on google ads; where should extra budget go. Reuse the next £20k idea.
+6. `/google-ads-budget/` - how much should I spend on google ads; where should extra budget go.
 7. `/ppc-agency-pitch/` - how to run a ppc agency pitch; ppc agency rfp questions. A shareable question list (linkable asset).
 8. `/smart-bidding-learning-period/` - google ads learning period; how long does smart bidding take to learn. Link the learning clock.
 

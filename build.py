@@ -151,7 +151,7 @@ def layout(title, description, path, body, nav_key="", extra_head="", seo_title=
         <p><a href="mailto:{EMAIL}">{EMAIL}</a></p>
       </div>
       <div><h4>Services</h4><ul><li><a href="/services/#consultation">Strategy consultation</a></li><li><a href="/services/#focused">Focused Review</a></li><li><a href="/services/#review">Decision Review</a></li><li><a href="/services/#advisory">Strategic advisory</a></li><li><a href="/google-ads-audit/">Google Ads audit</a></li><li><a href="/google-ads-agency-review/">Agency review</a></li></ul></div>
-      <div><h4>Free tools</h4><ul><li><a href="/tools/">Account X-ray</a></li><li><a href="/tools/#learning-clock">Learning clock</a></li><li><a href="/approach/#budgetgame">Next £20k game</a></li><li><a href="/insights/">Insights</a></li></ul></div>
+      <div><h4>Free tools</h4><ul><li><a href="/tools/">Account X-ray</a></li><li><a href="/tools/#learning-clock">Learning clock</a></li><li><a href="/insights/">Insights</a></li></ul></div>
       <div><h4>Second Query</h4><ul><li><a href="/about/">About</a></li><li><a href="/contact/">Contact</a></li><li><a href="/privacy/">Privacy notice</a></li></ul></div>
     </div>
     <div class="legal"><span>&copy; {year} Second Query, the trading name of Sam Hitchmough.</span><span>No cookies, no ad tracking, no sponsored results.</span></div>
@@ -257,7 +257,7 @@ def build():
     <article class="prose">{p["html"]}{source_list(p["sources"])}{nav}</article>
     <aside class="aside" aria-label="Work with Second Query">
       <h3>Facing this decision?</h3>
-      <p>A Decision Review gives you an independent, senior read on your account and a 90-day plan in ten working days.</p>
+      <p>A Decision Review gives you an independent, senior read on your account and a suggested 90-day plan.</p>
       <a class="btn" href="/contact/">Start a brief</a>
       <p style="margin:16px 0 0;font-size:14.5px"><a href="/services/#review">What a Review includes</a></p>
     </aside>

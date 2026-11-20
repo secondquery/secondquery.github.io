@@ -102,7 +102,7 @@
     bid: { tests: ['bid strategy type', 'bid strategy', 'bidding strategy type'], label: 'Bid strategy type', unlocks: 'checking manual bidding' },
     impr: { tests: ['impr.', 'impressions', 'impr'], label: 'Impressions', unlocks: 'weighting impression share correctly across days' },
     share: { tests: ['search impr. share', 'impr. share (%)', 'impression share', 'search impression share', 'impr. share'], label: 'Search impr. share', unlocks: 'combining impression share accurately across days' },
-    date: { tests: ['day', 'date', 'week', 'month', 'quarter'], label: 'Day / week (optional)', unlocks: 'spotting trends across the period' },
+    date: { tests: ['day', 'date', 'week', 'month', 'quarter', 'gregorian date', 'time period', 'week (mon - sun)', 'week (sun - sat)', 'week (monday)'], label: 'Day / week (optional)', unlocks: 'spotting trends across the period' },
     term: { tests: ['search term', 'search query'], label: 'Search term' },
     match: { tests: ['match type', 'search term match type', 'delivered match type', 'keyword match type', 'bid match type'], label: 'Match type', unlocks: 'measuring AI Mode exposure' }
   };
@@ -547,6 +547,222 @@
     return picked;
   };
 
+  /* ---------- dashboard: headline figures and charts ---------- */
+  const GROUPS = [
+    { k: 'brand', label: 'Brand Search', c: '--c1', dk: false },
+    { k: 'nonbrand', label: 'Non-brand Search', c: '--c2', dk: false },
+    { k: 'pmax', label: 'Performance Max', c: '--c3', dk: false },
+    { k: 'shopping', label: 'Shopping', c: '--c4', dk: true },
+    { k: 'aware', label: 'Display, Video and Demand Gen', c: '--c5', dk: false },
+    { k: 'other', label: 'Other or unclassified', c: '--cx', dk: true }
+  ];
+  const G = Object.fromEntries(GROUPS.map(g => [g.k, g]));
+  const groupOf = (x, hasType) => {
+    if (x.channel === 'Performance Max') return 'pmax';
+    if (x.channel === 'Shopping') return 'shopping';
+    if (AWARE.has(x.channel)) return 'aware';
+    if (x.isBrand && (x.channel === 'Search' || (x.channel === 'Unknown' && !hasType))) return 'brand';
+    if (x.channel === 'Search') return 'nonbrand';
+    return 'other';
+  };
+  const short = (s, n = 34) => s.length > n ? s.slice(0, n - 1) + '…' : s;
+  const pct1 = n => !isFinite(n) ? '-' : (n > 0 && n < 0.01 ? '<1%' : Math.round(n * 100) + '%');
+  const compact = n => n >= 1e6 ? '£' + (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'm' : n >= 1e4 ? '£' + Math.round(n / 1e3) + 'k' : n >= 1e3 ? '£' + (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'k' : gbp(n);
+  const tipAttr = s => `data-tip="${esc(s)}" tabindex="0"`;
+  const card = (title, sub, body, table, wide) => `<figure class="dcard${wide ? ' wide' : ''}"><figcaption><h3>${esc(title)}</h3>${sub ? `<p>${esc(sub)}</p>` : ''}</figcaption>${body}${table ? `<details class="tview"><summary>Show as a table</summary><div class="tablewrap">${table}</div></details>` : ''}</figure>`;
+  const tbl = (head, rows) => `<table class="ctable"><thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  const legend = items => `<ul class="dlegend">${items.map(i => `<li><i style="background:var(${i.c})"></i>${esc(i.label)}</li>`).join('')}</ul>`;
+
+  // one whole split into parts (tall segmented bar)
+  const segBar = (parts, name) => {
+    const total = parts.reduce((a, p) => a + p.v, 0);
+    if (!(total > 0)) return '';
+    return `<div class="segrow"><span class="segname">${esc(name)}</span><div class="seg" role="img" aria-label="${esc(name + ': ' + parts.filter(p => p.v > 0).map(p => `${p.label} ${pct1(p.v / total)}`).join(', '))}">${parts.filter(p => p.v > 0).map(p => {
+      const s = p.v / total;
+      return `<span class="segp${p.dk ? ' dk' : ''}" style="flex-grow:${s.toFixed(5)};background:var(${p.c})" ${tipAttr(`${name} · ${p.label}: ${p.fmt} (${pct1(s)})`)}>${s >= 0.1 ? `<b>${pct1(s)}</b>` : ''}</span>`;
+    }).join('')}</div></div>`;
+  };
+
+  // ranked horizontal bars, optional reference line (r = 0..1 of the track)
+  const hbars = (rows, ref) => `<div class="hbars"${ref != null ? ` style="--r:${Math.max(0, Math.min(1, ref)).toFixed(4)}"` : ''}>${rows.map(r => `<div class="hb"><span class="hbl" title="${esc(r.label)}">${esc(short(r.label))}</span><span class="hbt${ref != null ? ' ref' : ''}"><i style="width:${Math.max(0.5, r.w * 100).toFixed(2)}%;background:var(${r.c})" ${tipAttr(r.tip)}></i></span><span class="hbv">${esc(r.val)}</span></div>`).join('')}</div>`;
+
+  // columns over time, with an optional line in a second chart (never a second axis)
+  const niceMax = m => { if (!(m > 0)) return 1; const p = Math.pow(10, Math.floor(Math.log10(m))); const f = m / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; };
+  const plot = (pts, kind, fmtAxis, fmtTip, color) => {
+    const vals = pts.map(p => p.v).filter(v => isFinite(v));
+    if (vals.length < 2) return '';
+    const max = niceMax(Math.max(...vals) * 1.08);
+    const n = pts.length, bw = 100 / n;
+    const ticks = [0, 0.5, 1].map(f => `<span class="gl" style="bottom:${f * 100}%"><em>${esc(fmtAxis(max * f))}</em></span>`).join('');
+    const xl = [0, Math.floor((n - 1) / 2), n - 1].map(i => `<span style="left:${(i + 0.5) * bw}%">${esc(pts[i].label)}</span>`).join('');
+    let marks = '';
+    if (kind === 'col') {
+      marks = pts.map((p, i) => `<span class="col" style="left:${(i * bw + bw * 0.18).toFixed(3)}%;width:${(bw * 0.64).toFixed(3)}%;height:${(Math.max(0, p.v) / max * 100).toFixed(2)}%;background:var(${color})" ${tipAttr(fmtTip(p))}></span>`).join('');
+    } else {
+      const xy = pts.map((p, i) => isFinite(p.v) ? `${((i + 0.5) * bw).toFixed(3)},${(100 - p.v / max * 100).toFixed(3)}` : null);
+      const segs = []; let cur = [];
+      xy.forEach(v => { if (v) cur.push(v); else { if (cur.length) segs.push(cur); cur = []; } });
+      if (cur.length) segs.push(cur);
+      marks = `<svg class="lsvg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${segs.map(s => s.length > 1 ? `<polyline points="${s.join(' ')}" style="stroke:var(${color})"/>` : '').join('')}</svg>`;
+      const last = pts.map((p, i) => [p, i]).filter(([p]) => isFinite(p.v)).pop();
+      marks += pts.map((p, i) => isFinite(p.v) ? `<span class="hit" style="left:${(i * bw).toFixed(3)}%;width:${bw.toFixed(3)}%" ${tipAttr(fmtTip(p))}><i style="bottom:${(p.v / max * 100).toFixed(2)}%;background:var(${color})"></i></span>` : '').join('');
+      if (last) marks += `<span class="dot" style="left:${((last[1] + 0.5) * bw).toFixed(3)}%;bottom:${(last[0].v / max * 100).toFixed(2)}%;background:var(${color})"></span>`;
+    }
+    return `<div class="plot" role="img" aria-label="Chart: see the table view for values"><div class="pa">${ticks}${marks}</div><div class="xl">${xl}</div></div>`;
+  };
+
+  const weekKey = t => { const d = new Date(t); const day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  const dshort = t => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+
+  const renderDash = (C, T) => {
+    const cards = [];
+    const tiles = [];
+    const resName = C && C.useValue ? 'conversion value' : 'conversions';
+    if (C) {
+      const groups = GROUPS.map(g => ({ ...g, cost: 0, conv: 0, value: 0, n: 0 }));
+      const GI = Object.fromEntries(groups.map(g => [g.k, g]));
+      C.list.forEach(x => { const g = GI[groupOf(x, C.hasType)]; g.cost += x.cost; g.conv += x.conv; g.value += x.value; g.n++; x.grp = g.k; });
+      const res = g => C.useValue ? g.value : g.conv;
+      const totRes = C.useValue ? C.value : C.conv;
+      const present = groups.filter(g => g.cost > 0 || res(g) > 0);
+
+      // headline figures
+      tiles.push({ l: 'Spend', v: gbp(C.cost), n: `${int(C.n)} campaign${C.n === 1 ? '' : 's'}${C.dates.length ? ` · ${C.dates.length > 1 ? Math.round((C.dates[C.dates.length - 1] - C.dates[0]) / 864e5) + 1 + ' days' : '1 day'}` : ''}` });
+      tiles.push({ l: 'Conversions', v: int(C.conv), n: C.value > 0 ? `${gbp(C.value)} conversion value` : 'as reported in the file' });
+      tiles.push(C.useValue ? { l: 'Return on ad spend', v: (C.value / C.cost).toFixed(2) + 'x', n: isFinite(C.base) ? `non-brand: ${C.base.toFixed(2)}x` : '' }
+        : { l: 'Cost per conversion', v: C.conv ? gbp2(C.cost / C.conv) : '-', n: isFinite(C.base) ? `non-brand: ${gbp2(C.base)}` : '' });
+      if (GI.brand.cost > 0 && totRes > 0) tiles.push({ l: `Brand share of ${resName}`, v: pct1(res(GI.brand) / totRes), n: `from ${pct1(GI.brand.cost / C.cost)} of spend` });
+      const isRows = C.list.filter(x => IS_OK.has(x.channel) && isFinite(x.lost));
+      if (isRows.length) {
+        const w = isRows.reduce((a, x) => a + x.cost, 0);
+        const lb = isRows.reduce((a, x) => a + x.lost * x.cost, 0) / w, lr = isRows.reduce((a, x) => a + (isFinite(x.rank) ? x.rank : 0) * x.cost, 0) / w;
+        tiles.push({ l: 'Search impressions lost to budget', v: Math.round(lb) + '%', n: `${Math.round(lr)}% lost to rank` });
+      }
+
+      // 1. where the money goes vs where results come from
+      if (present.length > 1) {
+        const gap = present.map(g => ({ g, d: (totRes ? res(g) / totRes : 0) - g.cost / C.cost })).sort((a, b) => Math.abs(b.d) - Math.abs(a.d))[0];
+        const title = Math.abs(gap.d) >= 0.08 ? `${gap.g.label}: ${pct1(gap.g.cost / C.cost)} of spend, ${pct1(res(gap.g) / totRes)} of ${resName}` : 'Spend and results are spread fairly evenly across channels';
+        const body = segBar(present.map(g => ({ v: g.cost, c: g.c, dk: g.dk, label: g.label, fmt: gbp(g.cost) })), 'Spend') +
+          (totRes > 0 ? segBar(present.map(g => ({ v: res(g), c: g.c, dk: g.dk, label: g.label, fmt: C.useValue ? gbp(res(g)) : int(res(g)) + ' conversions' })), C.useValue ? 'Conv. value' : 'Conversions') : '') + legend(present);
+        cards.push(card(title, `How spend and ${resName} split by channel. Brand and non-brand are inferred from campaign names${brandWords().length ? ' and the brand names you entered' : ''}.`, body,
+          tbl(['Channel', 'Spend', 'Share of spend', C.useValue ? 'Conv. value' : 'Conversions', 'Share'], present.map(g => [g.label, gbp(g.cost), pct1(g.cost / C.cost), C.useValue ? gbp(res(g)) : int(res(g)), totRes ? pct1(res(g) / totRes) : '-'])), true));
+      }
+
+      // 2. return by campaign against the non-brand average
+      const withRes = C.list.filter(x => x.grp !== 'brand' && (C.useValue ? x.value > 0 : x.conv >= 1) && x.cost > 0).sort((a, b) => b.cost - a.cost).slice(0, 12);
+      const brandC = C.list.filter(x => x.grp === 'brand' && x.cost > 0);
+      const zero = C.list.filter(x => x.cost > 0 && x.conv < 0.5).sort((a, b) => b.cost - a.cost);
+      if (withRes.length >= 2) {
+        const effOf = x => C.useValue ? x.value / x.cost : x.cost / x.conv;
+        withRes.sort((a, b) => C.useValue ? effOf(b) - effOf(a) : effOf(a) - effOf(b));
+        const vmax = niceMax(Math.max(...withRes.map(effOf), isFinite(C.base) ? C.base : 0) * 1.05);
+        const fmtE = v => C.useValue ? v.toFixed(2) + 'x' : gbp2(v);
+        const better = x => C.useValue ? effOf(x) >= C.base : effOf(x) <= C.base;
+        const nb = withRes.filter(x => x.grp !== 'brand');
+        const beat = nb.filter(better).length;
+        const title = isFinite(C.base) && nb.length ? `${beat} of ${nb.length} non-brand campaign${nb.length > 1 ? 's' : ''} beat the non-brand average` : (C.useValue ? 'Return on ad spend by campaign' : 'Cost per conversion by campaign');
+        const sub = `${C.useValue ? 'Return on ad spend (conversion value ÷ spend). Longer is better.' : 'Cost per conversion. Shorter is better.'}${isFinite(C.base) ? ` The line marks the non-brand average of ${fmtE(C.base)}.` : ''} Colours show the channel.`;
+        let body = hbars(withRes.map(x => ({ label: x.name, w: effOf(x) / vmax, c: G[x.grp].c, val: fmtE(effOf(x)), tip: `${x.name} · ${fmtE(effOf(x))} · ${gbp(x.cost)} spend · ${C.useValue ? gbp(x.value) + ' value' : int(x.conv) + ' conversions'}` })), isFinite(C.base) ? C.base / vmax : null);
+        const usedG = GROUPS.filter(g => withRes.some(x => x.grp === g.k));
+        body += legend(usedG);
+        if (brandC.length) { const bc = brandC.reduce((a, x) => a + x.cost, 0), bv = brandC.reduce((a, x) => a + (C.useValue ? x.value : x.conv), 0); body += `<p class="dnote"><b>Brand Search</b> isn't shown, so it doesn't squash the scale: it ${C.useValue ? `returns ${(bv / bc).toFixed(2)}x` : `costs ${bv >= 1 ? gbp2(bc / bv) : '-'} per conversion`}.</p>`; }
+        if (zero.length) body += `<p class="dnote"><b>No conversions:</b> ${zero.slice(0, 4).map(x => `${esc(short(x.name, 40))} (${gbp(x.cost)})`).join(', ')}${zero.length > 4 ? ` and ${zero.length - 4} more` : ''}.</p>`;
+        cards.push(card(title, sub, body, tbl(['Campaign', 'Channel', 'Spend', C.useValue ? 'Conv. value' : 'Conversions', C.useValue ? 'ROAS' : 'Cost per conversion'], C.list.slice().sort((a, b) => b.cost - a.cost).map(x => [x.name, x.channel, gbp(x.cost), C.useValue ? gbp(x.value) : int(x.conv), (C.useValue ? x.value > 0 : x.conv >= 0.5) ? fmtE(effOf(x)) : '-']))));
+      }
+
+      // 3. room to grow: impression share in Search and Shopping
+      const isList = C.list.filter(x => IS_OK.has(x.channel) && isFinite(x.lost)).sort((a, b) => b.lost - a.lost).slice(0, 10);
+      if (isList.length) {
+        const capped = isList.filter(x => x.lost >= 15);
+        const title = capped.length ? `${capped.length} campaign${capped.length > 1 ? 's lose' : ' loses'} 15% or more of impressions to budget` : 'Budget isn\'t the main limit in Search; rank is';
+        const body = `<div class="isbars">${isList.map(x => {
+          const lb = Math.max(0, x.lost), lr = Math.max(0, isFinite(x.rank) ? x.rank : 0), won = Math.max(0, 100 - lb - lr);
+          return `<div class="isb"><span class="hbl" title="${esc(x.name)}">${esc(short(x.name))}</span><div class="seg thin">${[[won, '--c1', 'Impressions won'], [lb, '--hl', 'Lost to budget'], [lr, '--cx', 'Lost to rank']].filter(p => p[0] > 0.2).map(p => `<span class="segp" style="flex-grow:${p[0].toFixed(2)};background:var(${p[1]})" ${tipAttr(`${x.name} · ${p[2]}: ${Math.round(p[0])}%${x.isApprox ? ' (approx.)' : ''}`)}></span>`).join('')}</div><span class="hbv">${Math.round(lb)}%</span></div>`;
+        }).join('')}</div>` + legend([{ c: '--c1', label: 'Impressions won' }, { c: '--hl', label: 'Lost to budget (the % on the right)' }, { c: '--cx', label: 'Lost to rank' }]);
+        cards.push(card(title, 'Search impression share for Search and Shopping campaigns. Budget-limited campaigns that already perform well are where extra spend is most likely to help.', body,
+          tbl(['Campaign', 'Impression share', 'Lost to budget', 'Lost to rank'], isList.map(x => [x.name, Math.round(Math.max(0, 100 - x.lost - (isFinite(x.rank) ? x.rank : 0))) + '%', Math.round(x.lost) + '%' + (x.isApprox ? ' (approx.)' : ''), isFinite(x.rank) ? Math.round(x.rank) + '%' : '-']))));
+      }
+
+      // 4. trend over time
+      const spanDays = C.dates.length > 1 ? (C.dates[C.dates.length - 1] - C.dates[0]) / 864e5 : 0;
+      if (C.dates.length >= 4 && spanDays >= 13) {
+        const weekly = (C.dates[C.dates.length - 1] - C.dates[0]) / 864e5 > 27;
+        const buckets = new Map();
+        C.dates.forEach(t => { const k = weekly ? weekKey(t) : t; const b = buckets.get(k) || { cost: 0, conv: 0, value: 0 }; const p = C.byDate.get(t); b.cost += p.cost; b.conv += p.conv; b.value += p.value; buckets.set(k, b); });
+        const pts = [...buckets.entries()].sort((a, b) => a[0] - b[0]).map(([k, b]) => ({ t: k, label: dshort(k), ...b }));
+        const half = Math.floor(pts.length / 2);
+        const sumP = (a, k) => a.reduce((s, p) => s + p[k], 0);
+        const a1 = pts.slice(0, half), a2 = pts.slice(pts.length - half);
+        const ch = (x, y) => y ? (x - y) / y : NaN;
+        const spendCh = ch(sumP(a2, 'cost'), sumP(a1, 'cost'));
+        const e1 = C.useValue ? sumP(a1, 'value') / sumP(a1, 'cost') : sumP(a1, 'cost') / sumP(a1, 'conv'), e2 = C.useValue ? sumP(a2, 'value') / sumP(a2, 'cost') : sumP(a2, 'cost') / sumP(a2, 'conv');
+        const effCh = ch(e2, e1);
+        const dir = v => !isFinite(v) ? 'about the same' : Math.abs(v) < 0.03 ? 'about the same' : (v > 0 ? 'up ' : 'down ') + Math.round(Math.abs(v) * 100) + '%';
+        const unit = weekly ? 'week' : 'day';
+        cards.push(card(`Spend ${dir(spendCh)} in the second half of the period`, `Spend per ${unit}.${weekly ? ' Weeks start on Monday, so the first and last may be partial.' : ''}`,
+          plot(pts.map(p => ({ label: p.label, v: p.cost, raw: p })), 'col', compact, p => `${weekly ? 'Week of ' : ''}${p.label}: ${gbp(p.v)} spend`, '--c1'),
+          tbl([weekly ? 'Week starting' : 'Day', 'Spend', 'Conversions', C.useValue ? 'ROAS' : 'Cost per conversion'], pts.map(p => [p.label, gbp(p.cost), int(p.conv), C.useValue ? (p.cost ? (p.value / p.cost).toFixed(2) + 'x' : '-') : (p.conv >= 1 ? gbp2(p.cost / p.conv) : '-')]))));
+        const effPts = pts.map(p => ({ label: p.label, v: C.useValue ? (p.cost ? p.value / p.cost : NaN) : (p.conv >= 1 ? p.cost / p.conv : NaN) }));
+        cards.push(card(`${C.useValue ? 'Return on ad spend' : 'Cost per conversion'} ${dir(effCh)} over the same period`, `${C.useValue ? 'Return on ad spend' : 'Cost per conversion'} per ${unit}, across all campaigns. Recent ${unit}s can rise as delayed conversions are still being counted.`,
+          plot(effPts, 'line', v => C.useValue ? v.toFixed(1) + 'x' : compact(v), p => `${weekly ? 'Week of ' : ''}${p.label}: ${C.useValue ? p.v.toFixed(2) + 'x' : gbp2(p.v)}`, '--hl'), ''));
+      }
+    }
+
+    if (T) {
+      if (!C) {
+        tiles.push({ l: 'Search term spend', v: gbp(T.cost), n: `${int(T.n)} search terms` });
+        tiles.push({ l: 'Conversions', v: int(T.conv), n: T.conv ? `${gbp2(T.cost / T.conv)} per conversion` : '' });
+      }
+      tiles.push({ l: 'Search term spend with no conversions', v: pct1(T.zeroCost / T.cost), n: gbp(T.zeroCost) });
+      const brandC = T.list.filter(x => isBrandTerm(x.term));
+      const bCost = brandC.reduce((a, x) => a + x.cost, 0);
+      const convNB = T.list.filter(x => !isBrandTerm(x.term) && x.conv >= 0.5).reduce((a, x) => a + x.cost, 0);
+      const zeroNB = T.list.filter(x => !isBrandTerm(x.term) && x.conv < 0.5).reduce((a, x) => a + x.cost, 0);
+      const parts = [
+        { v: bCost, c: '--c1', label: 'Brand searches', fmt: gbp(bCost) },
+        { v: convNB, c: '--c2', label: 'Other searches that converted', fmt: gbp(convNB) },
+        { v: T.hidden, c: '--cx', dk: true, label: 'Not shown by Google ("Other search terms")', fmt: gbp(T.hidden) },
+        { v: zeroNB, c: '--hl', label: 'Other searches with no conversions', fmt: gbp(zeroNB) }
+      ];
+      cards.push(card(`${pct1(zeroNB / T.cost)} of search term spend went on non-brand searches with no conversions`, 'Where search term spend went over the period. Some spend with no conversions is normal: the question is whether it\'s the right kind.',
+        segBar(parts, 'Search term spend') + legend(parts.filter(p => p.v > 0)),
+        tbl(['Group', 'Spend', 'Share'], parts.filter(p => p.v > 0).map(p => [p.label, gbp(p.v), pct1(p.v / T.cost)])), true));
+      const topZero = T.list.filter(x => x.conv < 0.5).sort((a, b) => b.cost - a.cost).slice(0, 8);
+      if (topZero.length >= 2) {
+        const m = topZero[0].cost;
+        cards.push(card('The searches costing most with nothing to show', 'Search terms with spend but no conversions, by spend. Worth checking against your negative keywords.',
+          hbars(topZero.map(x => ({ label: x.term, w: x.cost / m, c: '--hl', val: gbp(x.cost), tip: `"${x.term}" · ${gbp(x.cost)} · no conversions` }))),
+          tbl(['Search term', 'Spend', 'Conversions'], topZero.map(x => [x.term, gbp(x.cost), '0']))));
+      }
+      const topConv = T.list.filter(x => x.conv >= 0.5).sort((a, b) => b.conv - a.conv).slice(0, 8);
+      if (topConv.length >= 2) {
+        const m = topConv[0].conv;
+        cards.push(card('The searches bringing in the most conversions', 'Search terms by reported conversions. Brand searches are in blue.',
+          hbars(topConv.map(x => ({ label: x.term, w: x.conv / m, c: isBrandTerm(x.term) ? '--c1' : '--c2', val: int(x.conv), tip: `"${x.term}" · ${int(x.conv)} conversions · ${gbp(x.cost)}` }))) + legend([{ c: '--c1', label: 'Brand' }, { c: '--c2', label: 'Non-brand' }].filter(l => topConv.some(x => (l.c === '--c1') === isBrandTerm(x.term)))),
+          tbl(['Search term', 'Conversions', 'Spend'], topConv.map(x => [x.term, int(x.conv), gbp(x.cost)]))));
+      }
+    }
+    return { tiles, html: cards.join('') };
+  };
+
+  // one tooltip for every chart mark (mouse and keyboard)
+  const tip = document.createElement('div');
+  tip.className = 'xtip'; tip.setAttribute('role', 'tooltip'); tip.hidden = true;
+  out.appendChild(tip);
+  const showTip = (el, x, y) => {
+    tip.textContent = el.dataset.tip; tip.hidden = false;
+    const r = out.getBoundingClientRect(), tw = tip.offsetWidth, th = tip.offsetHeight;
+    let left = x - r.left - tw / 2, top = y - r.top - th - 12;
+    left = Math.max(8, Math.min(left, r.width - tw - 8));
+    if (top < 8) top = y - r.top + 18;
+    tip.style.left = left + 'px'; tip.style.top = top + 'px';
+  };
+  out.addEventListener('mousemove', e => { const el = e.target.closest('[data-tip]'); if (el && out.contains(el)) showTip(el, e.clientX, e.clientY); else tip.hidden = true; });
+  out.addEventListener('mouseleave', () => { tip.hidden = true; });
+  out.addEventListener('focusin', e => { const el = e.target.closest('[data-tip]'); if (!el) return; const b = el.getBoundingClientRect(); showTip(el, b.left + b.width / 2, b.top); });
+  out.addEventListener('focusout', () => { tip.hidden = true; });
+
   /* ---------- rendering ---------- */
   const readCheck = (t, a, kind) => {
     const want = WANT[kind];
@@ -579,15 +795,10 @@
     if (!C && !T) { out.hidden = true; status.textContent = errs.join(' ') || 'Nothing readable in that file.'; return; }
     status.textContent = errs.join(' ');
 
-    const tiles = [];
-    if (C) {
-      tiles.push(['Spend', gbp(C.cost)], ['Conversions', int(C.conv)]);
-      tiles.push(C.useValue ? ['Return on ad spend', (C.value / C.cost).toFixed(2) + 'x'] : ['Cost per conversion', C.conv ? gbp2(C.cost / C.conv) : '-']);
-      tiles.push(['Campaigns', int(C.n)]);
-    } else {
-      tiles.push(['Search term spend', gbp(T.cost)], ['Conversions', int(T.conv)], ['Search terms', int(T.n)], ['Cost per conversion', T.conv ? gbp2(T.cost / T.conv) : '-']);
-    }
-    $('#xr-tiles').innerHTML = tiles.map(t => `<div class="xtile"><span>${esc(t[0])}</span><b>${esc(t[1])}</b></div>`).join('');
+    const D = renderDash(C, T);
+    $('#xr-tiles').innerHTML = D.tiles.map(t => `<div class="xtile"><span>${esc(t.l)}</span><b>${esc(t.v)}</b>${t.n ? `<small>${esc(t.n)}</small>` : ''}</div>`).join('');
+    $('#xr-dash').innerHTML = D.html;
+    const tiles = D.tiles.map(t => [t.l, t.v]);
     const period = (C && C.periodLabel) || (state.raw_t && state.raw_t.dateLine) || '';
     $('#xr-period').textContent = period ? 'Reporting period: ' + period : 'Reporting period: not stated in the file';
 
@@ -645,19 +856,52 @@
     return true;
   };
 
-  const handleFiles = files => {
+  /* Microsoft Advertising downloads CSVs inside a .zip: open it here, in the browser */
+  const unzip = async buf => {
+    const b = new Uint8Array(buf), dv = new DataView(buf);
+    let e = -1;
+    for (let i = b.length - 22; i >= Math.max(0, b.length - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { e = i; break; }
+    if (e < 0) throw new Error('zip');
+    const count = dv.getUint16(e + 10, true);
+    let p = dv.getUint32(e + 16, true);
+    const files = [];
+    for (let k = 0; k < count; k++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) break;
+      const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true), nlen = dv.getUint16(p + 28, true), xlen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+      const name = new TextDecoder().decode(b.subarray(p + 46, p + 46 + nlen));
+      p += 46 + nlen + xlen + clen;
+      if (!/\.(csv|tsv|txt)$/i.test(name)) continue;
+      const start = off + 30 + dv.getUint16(off + 26, true) + dv.getUint16(off + 28, true);
+      const data = b.slice(start, start + csize);
+      if (method === 0) files.push({ name, buf: data.buffer });
+      else if (method === 8 && 'DecompressionStream' in window) files.push({ name, buf: await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer() });
+      else throw new Error('zip');
+    }
+    return files;
+  };
+  const readFile = f => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsArrayBuffer(f); });
+
+  const handleFiles = async files => {
     const list = [...files].slice(0, 4);
     if (!list.length) return;
     Object.assign(state, { campaigns: null, terms: null, raw_c: null, raw_t: null, sample: false, names: [], msgs: [] });
     status.textContent = 'Reading…';
-    let pending = list.length;
-    list.forEach(f => {
-      if (f.size > 25 * 1024 * 1024) { state.msgs.push(`${f.name} is over 25 MB. Try a shorter date range.`); if (--pending === 0) render(); return; }
-      const fr = new FileReader();
-      fr.onload = () => { try { ingest(decode(fr.result), f.name); } catch (e) { state.msgs.push(`${f.name}: that file couldn't be read.`); } if (--pending === 0) render(); };
-      fr.onerror = () => { state.msgs.push(`${f.name}: that file couldn't be read.`); if (--pending === 0) render(); };
-      fr.readAsArrayBuffer(f);
-    });
+    for (const f of list) {
+      if (f.size > 25 * 1024 * 1024) { state.msgs.push(`${f.name} is over 25 MB. Try a shorter date range.`); continue; }
+      if (/\.xlsx?$/i.test(f.name)) { state.msgs.push(`${f.name}: Excel files can't be read here. Download the report as CSV (or .zip (CSV) from Microsoft Advertising) instead.`); continue; }
+      try {
+        const buf = await readFile(f);
+        const h = new Uint8Array(buf.slice(0, 4));
+        if (h[0] === 0x50 && h[1] === 0x4b && h[2] === 3 && h[3] === 4) {
+          const inner = await unzip(buf);
+          if (!inner.length) state.msgs.push(`${f.name}: there's no CSV inside that .zip.`);
+          inner.slice(0, 4).forEach(x => ingest(decode(x.buf), x.name));
+        } else ingest(decode(buf), f.name);
+      } catch (e) {
+        state.msgs.push(`${f.name}: that file couldn't be read.${/\.zip$/i.test(f.name) ? ' Try opening the .zip and dropping in the CSV inside it.' : ''}`);
+      }
+    }
+    render();
   };
 
   fileIn.addEventListener('change', () => handleFiles(fileIn.files));
@@ -727,14 +971,56 @@ how to paint a wooden sideboard,Performance Max,None,PMax - All products,--,"2,7
 Other search terms,--,None,--,--,"9,480","402,000","10,320.00",96.00,"21,600.00"
 Total: Search terms,,,,,"112,401","3,074,790","91,511.70","2,643.00","504,180.00"`;
 
+  const weeklySample = csv => {
+    const rows = parseDelimited(csv);
+    const hi = rows.findIndex(r => r.includes('Campaign') && r.includes('Cost'));
+    const hdr = rows[hi], data = rows.slice(hi + 1).filter(r => r[0] && !/^total/i.test(r[0]));
+    const ix = n => hdr.indexOf(n);
+    const sums = ['Cost', 'Impr.', 'Clicks', 'Conversions', 'Conv. value'].map(ix);
+    const W = 13, start = new Date(2026, 7, 3);
+    const weeks = [...Array(W)].map((_, i) => { const d = new Date(start); d.setDate(d.getDate() + i * 7); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
+    const out = [];
+    const fmt = (v, dp) => '"' + v.toLocaleString('en-GB', { minimumFractionDigits: dp, maximumFractionDigits: dp }) + '"';
+    const tot = sums.map(() => 0);
+    data.forEach((r, k) => {
+      const cw = weeks.map((_, i) => 1 + 0.16 * Math.sin(i * 0.9 + k) + 0.02 * (i - 6));
+      const fade = /sofas|clearance/i.test(r[1]) ? 0.035 : (/brand/i.test(r[1]) ? -0.01 : 0.004);
+      const vw = weeks.map((_, i) => cw[i] * (1 + fade * (6 - i)));
+      const cs = cw.reduce((a, b) => a + b, 0), vs = vw.reduce((a, b) => a + b, 0);
+      weeks.forEach((wk, i) => {
+        const row = r.slice();
+        sums.forEach((c, j) => {
+          const base = num(r[c]) || 0;
+          const share = (j >= 3 ? vw[i] / vs : cw[i] / cs);
+          const v = j === 1 || j === 2 ? Math.round(base * share) : Math.round(base * share * 100) / 100;
+          tot[j] += v;
+          row[c] = fmt(v, j === 1 || j === 2 ? 0 : 2);
+        });
+        row.splice(2, 0, wk);
+        out.push(row.map(x => /^"/.test(x) || !/[,"]/.test(x) ? x : '"' + x + '"').join(','));
+      });
+    });
+    const h2 = hdr.slice(); h2.splice(2, 0, 'Week');
+    const totalRow = h2.map((h, i) => i === 0 ? 'Total: Account' : '');
+    sums.forEach((c, j) => { totalRow[c + (c >= 2 ? 1 : 0)] = fmt(Math.round(tot[j] * 100) / 100, j === 1 || j === 2 ? 0 : 2); });
+    return ['Campaign performance report', '"3 August 2026 - 1 November 2026"', h2.join(','), ...out, totalRow.join(',')].join('\n');
+  };
+
   $('#xr-sample').addEventListener('click', () => {
     Object.assign(state, { campaigns: null, terms: null, raw_c: null, raw_t: null, sample: true, names: [], msgs: [] });
     brandIn.value = 'acme';
-    ingest(SAMPLE_CAMPAIGNS, 'sample');
+    ingest(weeklySample(SAMPLE_CAMPAIGNS), 'sample');
     ingest(SAMPLE_TERMS, 'sample');
     state.sample = true;
     render();
   });
+
+  // copy the Report editor prompt
+  root.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', async () => {
+    const el = document.getElementById(b.dataset.copy);
+    try { await navigator.clipboard.writeText(el.textContent); b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1600); }
+    catch (e) { b.textContent = 'Select and copy'; }
+  }));
 })();
 
 /* Optional AI read: only shown once an endpoint is configured in /static/ai-config.json */
