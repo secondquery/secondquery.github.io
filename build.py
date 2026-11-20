@@ -26,7 +26,7 @@ MARK = ('<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="13.5" cy="13.5"
         '<path d="M10.2 11.4c0-1.9 1.4-3.1 3.3-3.1s3.3 1.1 3.3 2.9c0 2.7-6.6 4.2-6.6 7.4h6.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>')
 
 NAV = [("services", "/services/", "Services"), ("approach", "/approach/", "How I work"),
-       ("insights", "/insights/", "Insights"), ("about", "/about/", "About")]
+       ("tools", "/tools/", "Account X-ray"), ("insights", "/insights/", "Insights"), ("about", "/about/", "About")]
 
 
 def parse_front(text):
@@ -105,7 +105,7 @@ def layout(title, description, path, body, nav_key="", extra_head=""):
         <p><a href="mailto:{EMAIL}">{EMAIL}</a></p>
       </div>
       <div><h4>Services</h4><ul><li><a href="/services/#consultation">Strategy consultation</a></li><li><a href="/services/#review">Decision Review</a></li><li><a href="/services/#advisory">Strategic advisory</a></li></ul></div>
-      <div><h4>Read</h4><ul><li><a href="/insights/">Insights</a></li><li><a href="/approach/">How I work</a></li><li><a href="/feed.xml">RSS feed</a></li></ul></div>
+      <div><h4>Free tools</h4><ul><li><a href="/tools/">Account X-ray</a></li><li><a href="/tools/#learning-clock">Learning clock</a></li><li><a href="/approach/#budgetgame">Next £20k game</a></li><li><a href="/insights/">Insights</a></li></ul></div>
       <div><h4>Second Query</h4><ul><li><a href="/about/">About</a></li><li><a href="/contact/">Contact</a></li><li><a href="/privacy/">Privacy notice</a></li></ul></div>
     </div>
     <div class="legal"><span>&copy; {year} Second Query, the trading name of Sam Hitchmough.</span><span>No cookies, no tracking, no sponsored results.</span></div>

@@ -38,6 +38,7 @@
     } else {
       let i = 0, ch = 0, deleting = false;
       const step = () => {
+        if (document.getElementById('heroform') && document.getElementById('heroform').classList.contains('active')) return;
         const q = pairs[i][0];
         if (!deleting) {
           ch++;
@@ -145,4 +146,254 @@
   /* 404: show the path people searched for */
   const miss = document.getElementById('missing-path');
   if (miss) miss.textContent = decodeURIComponent(location.pathname);
+}
+
+/* ---------- playful, in-section interactions ---------- */
+{
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  const gbp = n => '£' + Math.round(n).toLocaleString('en-GB');
+
+  /* hero: type your own question and the independent result answers it */
+  const form = document.getElementById('heroform');
+  if (form) {
+    const input = document.getElementById('heroq');
+    const snippet = document.getElementById('snippet');
+    const crumb = document.getElementById('crumbpath');
+    const link = document.querySelector('.searchscene .result h3 a');
+    const bank = [
+      { k: ['agency', 'switch', 'change', 'fire', 'pitch', 'retender', 'tender'], s: "Before you move the account, get an independent read on what's actually working, from someone who isn't pitching for it.", p: 'decision-review', h: '/services/#review' },
+      { k: ['in-house', 'inhouse', 'in house', 'bring it', 'own team', 'recruit', 'hire'], s: 'Know what to keep, what to rebuild and what your team should own first, before the move costs you a quarter of performance.', p: 'services', h: '/services/' },
+      { k: ['head of performance', 'just started', 'new role', 'new job', 'inherited', 'first 90', 'first 30', 'first month'], s: 'A specialist Google Ads baseline in ten working days, so you start with a plan rather than months of discovery.', p: 'decision-review', h: '/services/#review' },
+      { k: ['budget', 'spend more', 'scale', 'grow', 'growth', 'increase', 'more money', 'next £'], s: 'Find where extra budget is likely to work hardest, where returns are already flattening, and what to measure before you scale.', p: 'how-i-work', h: '/approach/#budgetgame' },
+      { k: ['pmax', 'performance max', 'p max'], s: 'Separate what Performance Max finds from what it simply claims, using the channel and search term reports most teams never open.', p: 'decision-review', h: '/services/#review' },
+      { k: ['brand'], s: 'Split brand from non-brand and judge each on its own terms. The account-wide average usually flatters non-brand.', p: 'account-x-ray', h: '/tools/' },
+      { k: ['ai max', 'automation', 'auto apply', 'auto-apply', 'recommendation', 'optimisation score', 'optimization score'], s: "Judge automation on your own margins and search terms, not platform averages. Then make it a decision, not a default.", p: 'insights', h: '/insights/ai-max-on-by-default-in-editor/' },
+      { k: ['ai mode', 'ai overview', 'overviews', 'gemini', 'chatgpt'], s: "Ads in AI Mode are due in the UK. There's nothing to opt into, so check what your current set-up will do when they arrive.", p: 'insights', h: '/insights/ads-in-ai-mode-uk/' },
+      { k: ['cpa', 'cost per', 'cpl', 'expensive', 'rising', 'creep', 'roas', 'return on', 'dropped', 'drop', 'worse', 'declin', 'falling'], s: 'Rising costs rarely have one cause. Tracking, targets, auction pressure and query drift usually arrive together. A Review isolates the one doing the damage.', p: 'decision-review', h: '/services/#review' },
+      { k: ['tracking', 'conversion', 'measure', 'attribution', 'ga4', 'analytics', 'offline', 'crm'], s: "If bidding is optimising towards the wrong thing, nothing else matters. It's the first thing every Review checks.", p: 'how-i-work', h: '/approach/' },
+      { k: ['learning', 'smart bidding', 'tcpa', 'troas', 'target', 'bid strategy', 'bidding'], s: "The Learning label clears within seven days. The learning doesn't. Work out how long to wait before judging a change.", p: 'learning-clock', h: '/tools/#learning-clock' },
+      { k: ['microsoft', 'bing'], s: 'Microsoft Advertising is part of every Review wherever it carries meaningful spend or opportunity.', p: 'services', h: '/services/' },
+      { k: ['audit', 'health', 'check', 'waste', 'wasted', 'negative', 'search term'], s: 'Start with the free Account X-ray: drop in a report and see where the waste is, without uploading anything.', p: 'account-x-ray', h: '/tools/' },
+      { k: ['price', 'how much', 'fee', 'pricing', 'cost of', 'charge'], s: 'Fixed prices, agreed up front: £295 for a consultation, £1,750 for a Decision Review and £1,500 a month for advisory.', p: 'services', h: '/services/' }
+    ];
+    const fallback = { s: "Not every question fits a box. Send it as a brief and you'll get a straight answer within two working days.", p: 'start-a-brief', h: '/contact/' };
+    let current = fallback;
+    const answer = q => {
+      q = q.toLowerCase();
+      let best = null, score = 0;
+      bank.forEach(a => { const n = a.k.filter(k => q.includes(k)).length; if (n > score) { score = n; best = a; } });
+      return best || fallback;
+    };
+    const show = a => {
+      current = a;
+      snippet.style.opacity = 0;
+      setTimeout(() => { snippet.textContent = a.s; crumb.textContent = a.p; link.href = a.h; snippet.style.opacity = 1; }, 160);
+    };
+    const activate = () => {
+      if (form.classList.contains('active')) return;
+      form.classList.add('active');
+      input.focus();
+    };
+    form.addEventListener('click', activate);
+    const tryOwn = document.getElementById('tryown');
+    if (tryOwn) tryOwn.addEventListener('click', activate);
+    let t;
+    input.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => { if (input.value.trim().length > 2) show(answer(input.value)); }, 260);
+    });
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const a = input.value.trim() ? answer(input.value) : current;
+      window.location.href = a.h;
+    });
+  }
+
+  /* "Sound familiar?" cards flip to show what's usually going on */
+  document.querySelectorAll('.pain').forEach(card => card.addEventListener('click', () => {
+    const open = card.classList.toggle('open');
+    card.setAttribute('aria-expanded', String(open));
+  }));
+
+  /* a magnifying glass over the sample Review */
+  const sheet = document.querySelector('.sheet.lens');
+  if (sheet) {
+    const doc = sheet.querySelector('.lensdoc');
+    const ring = document.createElement('span');
+    ring.className = 'lensring';
+    sheet.appendChild(ring);
+    const R = 92;
+    const place = (x, y, r) => {
+      doc.style.clipPath = `circle(${r}px at ${x}px ${y}px)`;
+      ring.style.transform = `translate(${x - R}px, ${y - R}px)`;
+      ring.style.opacity = r ? 1 : 0;
+    };
+    if (fine) {
+      sheet.addEventListener('pointermove', e => {
+        const b = sheet.getBoundingClientRect();
+        place(e.clientX - b.left, e.clientY - b.top, R);
+      });
+      sheet.addEventListener('pointerleave', () => place(0, 0, 0));
+    } else {
+      sheet.addEventListener('click', () => {
+        const open = sheet.classList.toggle('reveal');
+        doc.style.clipPath = open ? 'circle(150% at 50% 50%)' : 'circle(0px at 50% 50%)';
+      });
+      const hint = sheet.querySelector('.lenshint');
+      if (hint) hint.textContent = 'Tap to read it.';
+    }
+  }
+
+  /* thirty-second search terms report: click the searches you'd never pay for */
+  const game = document.getElementById('neggame');
+  if (game) {
+    const lane = document.getElementById('ng-lane');
+    const startBtn = document.getElementById('ng-start');
+    const savedEl = document.getElementById('ng-saved');
+    const timeEl = document.getElementById('ng-time');
+    const endEl = document.getElementById('ng-end');
+    const bad = ['free google ads course', 'ppc jobs london', 'google ads login', 'what is cpc', 'ppc salary uk', 'google ads support phone number', 'adwords certification answers', 'google ads voucher code', 'how to run google ads yourself', 'ppc meaning', 'marketing internship', 'google ads for dummies pdf', 'seo agency near me', 'cheap ppc freelancer'];
+    const good = ['google ads consultant uk', 'independent ppc audit', 'second opinion google ads', 'performance max review', 'paid search advisor', 'should we change ppc agency', 'google ads strategy advice'];
+    let saved = 0, missed = 0, wrong = 0, timer, spawner, left = 0, running = false;
+    const spawn = () => {
+      const isBad = Math.random() < 0.72;
+      const pool = isBad ? bad : good;
+      const term = pool[Math.floor(Math.random() * pool.length)];
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'term';
+      b.textContent = term;
+      b.dataset.bad = isBad ? '1' : '';
+      b.dataset.cost = String(isBad ? 4 + Math.floor(Math.random() * 16) : 0);
+      b.style.top = (8 + Math.floor(Math.random() * 3) * 34) + 'px';
+      const dur = 6.5 + Math.random() * 3;
+      if (reduce) {
+        b.style.left = (5 + Math.random() * 55) + '%';
+        setTimeout(() => expire(b), 3500);
+      } else {
+        b.style.animationDuration = dur + 's';
+        b.addEventListener('animationend', () => expire(b));
+      }
+      b.addEventListener('click', () => hit(b));
+      lane.appendChild(b);
+    };
+    const expire = b => {
+      if (!b.isConnected || b.dataset.done) return;
+      if (b.dataset.bad) missed += Number(b.dataset.cost);
+      b.remove();
+    };
+    const hit = b => {
+      if (!running || b.dataset.done) return;
+      b.dataset.done = '1';
+      if (b.dataset.bad) {
+        saved += Number(b.dataset.cost);
+        b.classList.add('negged');
+        b.textContent = '− ' + b.textContent;
+      } else {
+        wrong++;
+        saved = Math.max(0, saved - 25);
+        b.classList.add('oops');
+        b.textContent = 'that was a good one';
+      }
+      savedEl.textContent = gbp(saved);
+      setTimeout(() => b.remove(), 650);
+    };
+    const end = () => {
+      running = false;
+      clearInterval(timer); clearInterval(spawner);
+      lane.querySelectorAll('.term').forEach(b => b.remove());
+      const lines = [`You blocked ${gbp(saved)} of wasted clicks` + (missed ? ` and let ${gbp(missed)} slip through.` : '.')];
+      if (wrong) lines.push(`You also blocked ${wrong} good search${wrong > 1 ? 'es' : ''}, which is the other half of the job.`);
+      lines.push('Most real accounts have far more hiding in the search terms report. <a href="/tools/">Run the free Account X-ray</a> to find yours.');
+      endEl.innerHTML = lines.join(' ');
+      endEl.hidden = false;
+      startBtn.textContent = 'Play again';
+      lane.appendChild(startBtn);
+    };
+    startBtn.addEventListener('click', () => {
+      saved = 0; missed = 0; wrong = 0; left = 30; running = true;
+      savedEl.textContent = '£0'; timeEl.textContent = '30s'; endEl.hidden = true;
+      startBtn.remove();
+      spawn();
+      spawner = setInterval(spawn, 850);
+      timer = setInterval(() => { left--; timeEl.textContent = left + 's'; if (left <= 0) end(); }, 1000);
+    });
+  }
+
+  /* where should the next £20k go? */
+  const bg = document.getElementById('budgetgame');
+  if (bg) {
+    const TOTAL = 20000;
+    const curves = { brand: { a: 22, b: 3500 }, nonbrand: { a: 170, b: 24000 }, pmax: { a: 95, b: 15000 } };
+    const f = (k, x) => curves[k].a * (1 - Math.exp(-x / curves[k].b));
+    const marginal = (k, x) => curves[k].b / (curves[k].a * Math.exp(-x / curves[k].b));
+    const cols = [...bg.querySelectorAll('.bcol')];
+    const ranges = cols.map(c => c.querySelector('input'));
+    const keys = cols.map(c => c.dataset.k);
+    const youEl = document.getElementById('bg-you'), bestEl = document.getElementById('bg-best');
+    let best = null, bestVal = 0;
+    for (let x = 0; x <= TOTAL; x += 500) for (let y = 0; y <= TOTAL - x; y += 500) {
+      const v = f('brand', x) + f('nonbrand', y) + f('pmax', TOTAL - x - y);
+      if (v > bestVal) { bestVal = v; best = [x, y, TOTAL - x - y]; }
+    }
+    bestEl.textContent = Math.round(bestVal);
+    const draw = () => {
+      let total = 0;
+      cols.forEach((c, i) => {
+        const x = Number(ranges[i].value), k = keys[i], v = f(k, x);
+        total += v;
+        c.querySelector('.bval').textContent = gbp(x);
+        c.querySelector('.bbar i').style.height = Math.min(100, v / 1.1) + '%';
+        c.querySelector('.bout').innerHTML = `<b>+${Math.round(v)}</b> sales<br><span>next sale costs ${gbp(marginal(k, x))}</span>`;
+      });
+      youEl.textContent = Math.round(total);
+      bg.classList.toggle('optimal', Math.round(total) >= Math.round(bestVal) - 1);
+    };
+    const rebalance = changed => {
+      const others = ranges.filter((_, i) => i !== changed);
+      const want = TOTAL - Number(ranges[changed].value);
+      const have = others.reduce((a, r) => a + Number(r.value), 0);
+      others.forEach(r => { r.value = String(have ? Math.round((Number(r.value) / have) * want / 500) * 500 : Math.round(want / others.length / 500) * 500); });
+      const diff = TOTAL - ranges.reduce((a, r) => a + Number(r.value), 0);
+      if (diff) { const r = others.find(o => Number(o.value) + diff >= 0) || others[0]; r.value = String(Number(r.value) + diff); }
+    };
+    ranges.forEach((r, i) => r.addEventListener('input', () => { rebalance(i); draw(); }));
+    document.getElementById('bg-show').addEventListener('click', () => { ranges.forEach((r, i) => { r.value = String(best[i]); }); draw(); });
+    draw();
+  }
+
+  /* the learning clock */
+  document.querySelectorAll('.lclock').forEach(w => {
+    const rate = w.querySelector('.lc-rate'), lag = w.querySelector('.lc-lag');
+    const rateOut = w.querySelector('.lc-rate-out'), lagOut = w.querySelector('.lc-lag-out');
+    const dots = w.querySelector('.lcdots'), res = w.querySelector('.lcresult');
+    dots.innerHTML = '<i></i>'.repeat(50);
+    const ds = [...dots.children];
+    const fmt = d => d < 14 ? `${Math.ceil(d)} days` : d < 120 ? `about ${Math.round(d / 7)} weeks` : `about ${Math.round(d / 30)} months`;
+    const draw = () => {
+      const r = Number(rate.value), l = Number(lag.value);
+      rateOut.textContent = r; lagOut.textContent = l;
+      const byLabel = Math.min(50, r);
+      ds.forEach((d, i) => d.classList.toggle('on', i < byLabel));
+      const days = Math.max(7, (50 / r) * 7, 3 * l);
+      let msg = `The "Learning" label clears within 7 days, when you'll have about <b>${Math.min(50, r)}</b> of the ~50 conversions. Plan on <b>${fmt(days)}</b> before judging the change.`;
+      if (days > 90) msg += ' At this volume, consider bidding to a higher-volume conversion that still predicts value, or consolidating campaigns.';
+      res.innerHTML = msg;
+    };
+    rate.addEventListener('input', draw); lag.addEventListener('input', draw);
+    draw();
+  });
+
+  /* cards lean gently towards the cursor */
+  if (fine && !reduce) {
+    document.querySelectorAll('.post-card, .principle, .xtile').forEach(card => {
+      card.addEventListener('pointermove', e => {
+        const b = card.getBoundingClientRect();
+        const x = (e.clientX - b.left) / b.width - 0.5, y = (e.clientY - b.top) / b.height - 0.5;
+        card.style.transform = `perspective(700px) rotateX(${(-y * 4).toFixed(2)}deg) rotateY(${(x * 5).toFixed(2)}deg) translateY(-3px)`;
+      });
+      card.addEventListener('pointerleave', () => { card.style.transform = ''; });
+    });
+  }
 }

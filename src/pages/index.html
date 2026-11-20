@@ -7,7 +7,7 @@ nav:
 <section class="wrap hero">
   <div>
     <h1>A second opinion before your next big Google Ads decision</h1>
-    <p class="lede">Second Query gives UK businesses an independent, senior read on their paid search before the calls that cost the most: a new Head of Performance starting, an agency change, bringing PPC in-house or a serious budget step-up.</p>
+    <p class="lede">The agency says it's fine. Finance isn't convinced. Google has switched something new on again. And you're the one who has to make the call. Second Query gives UK marketing leaders an independent, senior read on their Google Ads before the decisions that cost the most.</p>
     <div class="actions">
       <a class="btn pink" href="/contact/">Start a brief</a>
       <a class="btn ghost" href="/services/#review">See the Decision Review</a>
@@ -20,8 +20,13 @@ nav:
     </ul>
   </div>
   <div class="searchscene" aria-label="Example searches answered by Second Query">
-    <div class="query"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg><span class="typed" id="typed" aria-live="off">should we change our ppc agency</span><span class="caret"></span></div>
-    <p class="count">About 1 result worth your time</p>
+    <form class="query live" id="heroform" role="search" action="/contact/">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+      <span class="typed" id="typed" aria-hidden="true">should we change our ppc agency</span><span class="caret" aria-hidden="true"></span>
+      <label class="sr" for="heroq">Ask your own Google Ads question</label>
+      <input id="heroq" name="q" type="search" autocomplete="off" maxlength="90" placeholder="Type your own question…">
+    </form>
+    <p class="count">About 1 result worth your time · <button type="button" class="linkish" id="tryown">try your own search</button></p>
     <div class="result">
       <div class="crumb"><span class="favicon"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="13.5" cy="13.5" r="9.5" fill="none" stroke="currentColor" stroke-width="3"/><path d="M21 21l7 7" stroke="#ff2e7e" stroke-width="3.6" stroke-linecap="round"/></svg></span><span>secondquery.com › <span id="crumbpath">decision-review</span></span><span class="tag">Independent</span></div>
       <h3><a href="/services/#review">Second Query - independent paid search advice</a></h3>
@@ -39,7 +44,24 @@ nav:
 <section class="band" style="padding-top:clamp(24px,4vw,48px)">
   <div class="wrap">
     <div class="head2">
-      <h2>The searches that bring people here</h2>
+      <h2>Sound familiar?</h2>
+      <p>Things marketing leaders say on the first call. Tap one to see what's usually going on underneath.</p>
+    </div>
+    <div class="pains">
+      <button class="pain" type="button" aria-expanded="false"><span class="front"><span class="pq">"The agency says performance is fine. Finance isn't convinced."</span><span class="flipcue">What's usually going on</span></span><span class="back"><span><b>Usually:</b> the reporting is built for the platform, not the P&amp;L. Brand demand, modelled conversions and generous attribution flatter the headline. <b>A Review</b> reconciles what Google Ads claims with what the business actually banked.</span></span></button>
+      <button class="pain" type="button" aria-expanded="false"><span class="front"><span class="pq">"Our ROAS looks great. I'm not sure how much of it is just brand."</span><span class="flipcue">What's usually going on</span></span><span class="back"><span><b>Usually:</b> brand search carries the return while non-brand, where growth and waste both live, hides inside the average. <b>A Review</b> splits them and judges each on its own terms.</span></span></button>
+      <button class="pain" type="button" aria-expanded="false"><span class="front"><span class="pq">"Performance Max takes a big slice of budget and nobody can tell me on what."</span><span class="flipcue">What's usually going on</span></span><span class="back"><span><b>Usually:</b> it's blending brand, Shopping and remarketing, and the newer channel and search term reports go unread. <b>A Review</b> shows where the money goes and what it genuinely adds.</span></span></button>
+      <button class="pain" type="button" aria-expanded="false"><span class="front"><span class="pq">"We've been asked for 20% more growth on the same budget."</span><span class="flipcue">What's usually going on</span></span><span class="back"><span><b>Usually:</b> some campaigns are capped and profitable while others are well past diminishing returns. <b>A Review</b> finds where money can move without a bigger cheque.</span></span></button>
+      <button class="pain" type="button" aria-expanded="false"><span class="front"><span class="pq">"I've just started, and I've inherited an account I didn't build."</span><span class="flipcue">What's usually going on</span></span><span class="back"><span><b>Usually:</b> months of discovery before anyone feels safe changing anything. <b>A Review</b> gets you a baseline and a 90-day plan in ten working days.</span></span></button>
+      <button class="pain" type="button" aria-expanded="false"><span class="front"><span class="pq">"Cost per lead has crept up for months and everyone has a different theory."</span><span class="flipcue">What's usually going on</span></span><span class="back"><span><b>Usually:</b> tracking changes, bid targets, auction pressure and query drift all land at once. <b>A Review</b> isolates which one is actually doing the damage.</span></span></button>
+    </div>
+  </div>
+</section>
+
+<section class="band" style="padding-top:0">
+  <div class="wrap">
+    <div class="head2">
+      <h2>Built for four expensive moments</h2>
       <p>Most businesses don't need more Google Ads management. They need a clear, unbiased answer at the moment a decision gets expensive, and the people closest to the account rarely have the time or distance to give it.</p>
     </div>
     <div class="suggest" role="list">
@@ -65,7 +87,7 @@ nav:
 
 <section class="band" style="background:var(--soft)">
   <div class="wrap preview">
-    <div class="sheet" aria-label="The structure of a Decision Review document">
+    <div class="sheet lens" aria-label="An illustrative example of a Decision Review document">
       <h4>Decision Review</h4>
       <p class="meta">Prepared for your leadership team · 10 working days</p>
       <span class="note n1">One recommendation, stated up front</span>
@@ -74,7 +96,15 @@ nav:
       <span class="note n2">Risks priced, not hand-waved</span>
       <div class="sec"><b>3. Risks and what would change my mind</b><div class="line" style="width:90%"></div><div class="line" style="width:58%"></div></div>
       <div class="sec"><b>4. Your 90-day plan</b><div class="line" style="width:84%"></div><div class="line" style="width:94%"></div><div class="line" style="width:40%"></div></div>
-      <span class="stamp">Illustrative layout. Every Review is written for one business and one decision.</span>
+      <span class="stamp">Illustrative example. Every Review is written for one business and one decision. <span class="lenshint">Hover to read it.</span></span>
+      <div class="lensdoc" aria-hidden="true">
+        <h4>Decision Review</h4>
+        <p class="meta">Prepared for your leadership team · 10 working days</p>
+        <div class="sec"><b>1. Recommendation</b><p>Keep the agency. Fix lead values first, then move a third of non-brand budget out of Performance Max into two tightly themed Search campaigns.</p></div>
+        <div class="sec"><b>2. Evidence from your account</b><p>41% of reported conversions are brand searches. Three campaigns are capped by budget at a cost per lead 22% under target. Offline sales aren't feeding bidding.</p></div>
+        <div class="sec"><b>3. Risks and what would change my mind</b><p>Lead quality could dip for two to three weeks while bidding recalibrates. If CRM-matched sales fall more than 10%, pause and revert.</p></div>
+        <div class="sec"><b>4. Your 90-day plan</b><p>Weeks 1 to 2: lead values and offline import. Weeks 3 to 6: the budget move. Weeks 7 to 12: a clean AI Max test on one campaign.</p></div>
+      </div>
     </div>
     <div>
       <h2>What you actually get</h2>
@@ -135,6 +165,35 @@ nav:
       <li>pitching for your agency's job</li>
     </ul>
     <p class="negnote">Because I never manage the account or earn from your spend, the advice has only one job: to be right.</p>
+
+    <div class="game" id="neggame">
+      <div class="gamehead">
+        <div><b>Thirty-second search terms report</b><span>Click the searches you'd never want to pay for. Leave the good ones alone.</span></div>
+        <div class="gamescore"><span id="ng-saved">£0</span> saved<span class="gtime" id="ng-time">30s</span></div>
+      </div>
+      <div class="lane" id="ng-lane" aria-live="polite">
+        <button class="btn" type="button" id="ng-start">Play</button>
+      </div>
+      <p class="gameend" id="ng-end" hidden></p>
+    </div>
+  </div>
+</section>
+
+<section class="band xteaser">
+  <div class="wrap two" style="align-items:center">
+    <div>
+      <span class="tag">Free · runs in your browser</span>
+      <h2 style="margin-top:14px">X-ray your own account in two minutes</h2>
+      <p class="quiet" style="margin-top:16px">Drop in a campaign or search terms report exported from Google Ads or Microsoft Advertising. You get an instant read on brand dependence, budget headroom, wasted search terms and how exposed you are to AI Mode. Your file never leaves your browser.</p>
+      <div class="actions" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:22px"><a class="btn pink" href="/tools/">Open the Account X-ray</a><a class="btn ghost" href="/tools/#learning-clock">Try the learning clock</a></div>
+    </div>
+    <div class="xmini" aria-hidden="true">
+      <div class="xrow"><span>Brand share of conversions</span><b>41%</b><i style="--w:41%"></i></div>
+      <div class="xrow"><span>Spend on zero-conversion searches</span><b>18%</b><i style="--w:18%"></i></div>
+      <div class="xrow"><span>Budget-capped winners</span><b>3</b><i style="--w:30%"></i></div>
+      <div class="xrow"><span>Spend open to AI Mode matching</span><b>63%</b><i style="--w:63%"></i></div>
+      <p>Sample data</p>
+    </div>
   </div>
 </section>
 

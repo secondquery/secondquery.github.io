@@ -25,6 +25,17 @@ Google's guidance says calibrating to a new objective can take up to around 50 c
 
 For a high-volume account, 50 conversions might take a few days. For a B2B account generating eight leads a month, it could take most of a year. The same seven-day label means very different things.
 
+Try it with your own numbers:
+
+<div class="lclock">
+<div class="lcin">
+<label>Conversions a week, for this campaign<span><input type="range" min="1" max="120" value="12" class="lc-rate" aria-label="Conversions a week"><output class="lc-rate-out">12</output></span></label>
+<label>Typical days from click to conversion<span><input type="range" min="0" max="30" value="3" class="lc-lag" aria-label="Days from click to conversion"><output class="lc-lag-out">3</output></span></label>
+</div>
+<div class="lcdots" aria-hidden="true"></div>
+<p class="lcresult" aria-live="polite"></p>
+</div>
+
 ## What this changes in practice
 
 **Budget step-ups.** If you're planning to add a lot of budget, change it in steps and judge each step on conversions collected, not days passed. Put the step dates in the calendar so nobody changes targets mid-way.
