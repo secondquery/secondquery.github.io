@@ -87,12 +87,12 @@ def layout(title, description, path, body, nav_key="", extra_head="", seo_title=
         f'<a href="{href}"{" aria-current=page" if key == nav_key else ""}>{label}</a>' for key, href, label in NAV)
     year = dt.date.today().year
     org = {
-        "@context": "https://schema.org", "@type": "ProfessionalService", "@id": SITE + "/#business", "name": BRAND,
+        "@context": "https://schema.org", "@type": "Organization", "@id": SITE + "/#business", "name": BRAND,
         "url": SITE + "/", "email": EMAIL, "areaServed": {"@type": "Country", "name": "United Kingdom"},
-        "logo": SITE + "/static/email-logo.png", "image": SITE + "/static/og-image.png", "priceRange": "£295 - £1,750",
+        "logo": SITE + "/static/email-logo.png", "image": SITE + "/static/og-image.png",
         "description": "Independent, senior Google Ads and Microsoft Advertising consultancy for UK businesses: account reviews, audits and strategic advice, without account management.",
         "knowsAbout": ["Google Ads", "Microsoft Advertising", "Pay-per-click advertising", "Performance Max", "Smart Bidding", "Paid search strategy"],
-        "founder": {"@type": "Person", "name": "Sam Hitchmough", "jobTitle": "Founder"},
+        "founder": {"@type": "Person", "name": "Sam Hitchmough", "jobTitle": "Founder", "url": SITE + "/about/"}, "slogan": "A second opinion before your next big Google Ads decision",
         "hasOfferCatalog": {"@type": "OfferCatalog", "name": "Paid search advisory services", "itemListElement": [
             {"@type": "Offer", "name": "Strategy consultation", "price": "295", "priceCurrency": "GBP", "url": SITE + "/services/#consultation"},
             {"@type": "Offer", "name": "Focused Review", "price": "795", "priceCurrency": "GBP", "url": SITE + "/services/#focused"},
