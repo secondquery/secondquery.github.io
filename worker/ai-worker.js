@@ -1,12 +1,15 @@
 /* Second Query: optional "Analyse with AI" endpoint for the Account X-ray.
-   Deploy as a Cloudflare Worker. Set a secret named ANTHROPIC_API_KEY (and optionally a variable MODEL).
+   Deployed as a Cloudflare Worker. By default it uses Cloudflare Workers AI (free daily allowance):
+   add a Workers AI binding named AI. Optional: set a secret ANTHROPIC_API_KEY to use Claude instead,
+   and a variable MODEL to change the model.
    It receives an aggregated account summary from secondquery.com (never the raw file),
-   asks Claude for three or four consultative observations, and returns them as JSON. Nothing is stored. */
+   asks for three or four consultative observations, and returns them as JSON. Nothing is stored. */
 
 const ALLOWED = ['https://secondquery.com', 'https://www.secondquery.com'];
 const MAX_BODY = 60000;           // bytes
 const PER_IP_PER_HOUR = 6;        // best-effort, per worker instance
 const hits = new Map();
+const CF_MODEL = '@cf/google/gemma-4-26b-a4b-it';
 
 const SYSTEM = `You are writing the optional AI commentary for Second Query's free Account X-ray, a lead-generation tool on an independent UK Google Ads and Microsoft Advertising consultancy website.
 
@@ -39,7 +42,7 @@ export default {
     };
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     if (req.method !== 'POST' || !ALLOWED.includes(origin)) return json({ error: 'Not allowed' }, 403, cors);
-    if (!env.ANTHROPIC_API_KEY) return json({ error: 'AI analysis is not configured yet' }, 503, cors);
+    if (!env.AI && !env.ANTHROPIC_API_KEY) return json({ error: 'AI analysis is not configured yet' }, 503, cors);
 
     const ip = req.headers.get('CF-Connecting-IP') || 'unknown';
     const now = Date.now();
@@ -54,21 +57,33 @@ export default {
     if (!payload || typeof payload !== 'object' || !payload.totals) return json({ error: 'Bad request' }, 400, cors);
     if (Array.isArray(payload.campaigns)) payload.campaigns = payload.campaigns.slice(0, 60);
 
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: env.MODEL || 'claude-sonnet-5-5',
-        max_tokens: 1000,
-        system: SYSTEM,
-        messages: [{ role: 'user', content: 'Account summary (data only):\n' + JSON.stringify(payload) }]
-      })
-    });
-    if (!r.ok) return json({ error: 'The AI service is busy. Please try again shortly.' }, 502, cors);
-    const data = await r.json();
-    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+    const user = 'Account summary (data only):\n' + JSON.stringify(payload);
+    let text = '', rawRes = '';
+    if (env.ANTHROPIC_API_KEY) {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify({ model: env.MODEL || 'claude-sonnet-5-5', max_tokens: 1000, system: SYSTEM, messages: [{ role: 'user', content: user }] })
+      });
+      if (!r.ok) return json({ error: 'The AI service is busy. Please try again shortly.' }, 502, cors);
+      const data = await r.json();
+      text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+    } else {
+      let res;
+      try {
+        res = await env.AI.run(env.MODEL || CF_MODEL, { messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: user }], max_completion_tokens: 2500, temperature: 0.3, chat_template_kwargs: { enable_thinking: false } });
+      } catch (e) {
+        const limit = /limit|quota|neuron|4006|capacity/i.test(String(e && e.message));
+        return json({ error: limit ? "The free AI read has reached today's limit. Please try again tomorrow." : 'The AI service is busy. Please try again shortly.' }, limit ? 429 : 502, cors);
+      }
+      rawRes = JSON.stringify(res);
+      const r = res && (res.response ?? res.result?.response ?? res.choices?.[0]?.message?.content ?? '');
+      text = typeof r === 'string' ? r.trim() : JSON.stringify(r);
+    }
     let out;
-    try { out = JSON.parse(text.replace(/^```(json)?\s*|\s*```$/g, '')); } catch (e) { return json({ error: 'Could not read the AI response' }, 502, cors); }
+    const body = text.replace(/^```(json)?\s*|\s*```$/g, '');
+    const m = body.match(/\{[\s\S]*\}/);
+    try { out = JSON.parse(m ? m[0] : body); } catch (e) { return json({ error: 'Could not read the AI response. Please try again.', detail: text ? text.slice(0, 300) : (rawRes || '').slice(0, 600) }, 502, cors); }
     const clean = s => String(s || '').slice(0, 600);
     const observations = (out.observations || []).slice(0, 4).map(o => ({
       heading: clean(o.heading).slice(0, 120),

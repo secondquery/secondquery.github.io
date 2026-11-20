@@ -1036,12 +1036,12 @@ Total: Search terms,,,,,"112,401","3,074,790","91,511.70","2,643.00","504,180.00
   ok.addEventListener('change', () => { go.disabled = !ok.checked; });
   go.addEventListener('click', async () => {
     if (!ok.checked || !window.SQXray || !window.SQXray.payload) return;
-    go.disabled = true; st.textContent = 'Asking Claude… this usually takes 10 to 20 seconds.'; out.innerHTML = '';
+    go.disabled = true; st.textContent = 'Asking the AI… this usually takes 10 to 20 seconds.'; out.innerHTML = '';
     try {
       const r = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ payload: window.SQXray.payload }) });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'Something went wrong');
-      out.innerHTML = (j.observations || []).map(o => `<article class="obs"><h3>${esc(o.heading)}</h3>${o.metrics && o.metrics.length ? `<div class="obsm">${o.metrics.map(m => `<span>${esc(m)}</span>`).join('')}</div>` : ''}<p>${esc(o.text)}</p></article>`).join('') + (j.closing ? `<p class="xhelp" style="margin-top:12px">${esc(j.closing)}</p>` : '') + '<p class="obsnote" style="margin-top:8px">Written by Claude from the summary above. AI can get things wrong, so treat this as a starting point.</p>';
+      out.innerHTML = (j.observations || []).map(o => `<article class="obs"><h3>${esc(o.heading)}</h3>${o.metrics && o.metrics.length ? `<div class="obsm">${o.metrics.map(m => `<span>${esc(m)}</span>`).join('')}</div>` : ''}<p>${esc(o.text)}</p></article>`).join('') + (j.closing ? `<p class="xhelp" style="margin-top:12px">${esc(j.closing)}</p>` : '') + '<p class="obsnote" style="margin-top:8px">Written by AI (Google\'s Gemma model, run by Cloudflare) from the summary above. AI can get things wrong, so treat this as a starting point.</p>';
       st.textContent = '';
     } catch (e) {
       st.textContent = e.message || 'Something went wrong. Please try again later.';
