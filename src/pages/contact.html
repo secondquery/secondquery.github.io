@@ -1,0 +1,94 @@
+---
+title: Start a brief
+description: Tell Second Query about the Google Ads decision you're facing. The brief takes about five minutes, and you'll get a reply within two working days.
+path: /contact/
+nav: contact
+---
+<section class="wrap pagehead">
+  {{query:how do we get started}}
+  <h1>Start a brief</h1>
+  <p class="lede">Tell me what you're deciding. Like a good ad, a good brief gets a better result, so there's a meter to tell you how yours is doing. You'll get a reply within two working days.</p>
+</section>
+
+<section class="wrap" style="padding-bottom:clamp(48px,7vw,96px)">
+  <div class="brief">
+    <form class="brieform" id="brief" novalidate>
+      <div class="two" style="gap:0 18px">
+        <div class="field"><label for="f-name">Your name</label><input id="f-name" name="name" autocomplete="name" required></div>
+        <div class="field"><label for="f-email">Work email</label><input id="f-email" name="email" type="email" autocomplete="email" required></div>
+        <div class="field"><label for="f-role">Role <span class="hint">(optional)</span></label><input id="f-role" name="role" autocomplete="organization-title" placeholder="e.g. Head of Performance"></div>
+        <div class="field"><label for="f-company">Company</label><input id="f-company" name="company" autocomplete="organization"></div>
+      </div>
+      <fieldset class="field" style="border:0;padding:0;margin:0 0 18px">
+        <legend style="font-weight:600;font-size:15px;margin-bottom:8px;padding:0">What are you deciding? <span class="hint">(pick any)</span></legend>
+        <div class="choices">
+          <label><input type="checkbox" name="decision" value="New Head of Performance">New Head of Performance</label>
+          <label><input type="checkbox" name="decision" value="Agency change">Agency change</label>
+          <label><input type="checkbox" name="decision" value="Bringing PPC in-house">Bringing PPC in-house</label>
+          <label><input type="checkbox" name="decision" value="Budget step-up">Budget step-up</label>
+          <label><input type="checkbox" name="decision" value="New campaign type or bidding">New campaign type or bidding</label>
+          <label><input type="checkbox" name="decision" value="Something else">Something else</label>
+        </div>
+      </fieldset>
+      <div class="two" style="gap:0 18px">
+        <div class="field"><label for="f-spend">Monthly Google Ads spend</label>
+          <select id="f-spend" name="spend">
+            <option value="">Choose a range</option>
+            <option>Under £10,000</option>
+            <option>£10,000 to £25,000</option>
+            <option>£25,000 to £50,000</option>
+            <option>£50,000 to £100,000</option>
+            <option>Over £100,000</option>
+            <option>Rather not say yet</option>
+          </select>
+        </div>
+        <div class="field"><label for="f-timing">When do you need to decide?</label>
+          <select id="f-timing" name="timing">
+            <option value="">Choose a timeframe</option>
+            <option>In the next two weeks</option>
+            <option>This month</option>
+            <option>This quarter</option>
+            <option>Just exploring</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label for="f-details">The decision, in your words</label>
+        <textarea id="f-details" name="details" placeholder="What's the decision, what's prompting it and what would a good outcome look like?"></textarea>
+      </div>
+      <div class="formactions">
+        <button class="btn pink" type="submit">Email this brief</button>
+        <button class="btn ghost" type="button" id="copy">Copy brief</button>
+      </div>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+      <p class="quiet" style="font-size:14px;margin:6px 0 0">Sending opens your own email app with the brief filled in, so nothing is stored on this site. Please don't include passwords or customer data. See the <a href="/privacy/">privacy notice</a>.</p>
+    </form>
+
+    <aside class="strength" aria-label="Brief strength">
+      <div class="label"><span class="quiet" style="font-size:15px">Brief strength</span><b id="strength-label" aria-live="polite">Not started</b></div>
+      <div class="meter" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <ul>
+        <li>Add your name and a work email</li>
+        <li>Say which company it's for</li>
+        <li>Pick the decision you're facing</li>
+        <li>Give a rough monthly spend</li>
+        <li>Describe it in a few sentences</li>
+      </ul>
+      <p class="quiet" style="font-size:14.5px;margin:16px 0 0">Prefer plain email? Write to <a href="mailto:{{email}}">{{email}}</a>.</p>
+    </aside>
+  </div>
+</section>
+
+<section class="band" style="background:var(--soft)">
+  <div class="wrap">
+    <div class="head2">
+      <h2>What happens next</h2>
+      <p>No sales sequence, no pressure.</p>
+    </div>
+    <div class="days">
+      <div class="day"><span class="when">Within 2 working days</span><h3>A reply from me</h3><p>Usually with a suggested next step and a fixed price, or an honest "this isn't for me" if it isn't.</p></div>
+      <div class="day"><span class="when">If it's a fit</span><h3>A free 20-minute call</h3><p>We agree the exact question, the data I'd need and the timing.</p></div>
+      <div class="day"><span class="when">Before any work</span><h3>Written scope</h3><p>A short scope, the price and an NDA if you'd like one.</p></div>
+      <div class="day key"><span class="when">Then</span><h3>The work starts</h3><p>On a date that suits your decision, not mine.</p></div>
+    </div>
+  </div>
+</section>
