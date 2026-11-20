@@ -100,12 +100,15 @@
     lost: { tests: [/lost.*budget/], label: 'Lost impression share (budget)', unlocks: 'finding efficient campaigns held back by budget' },
     rank: { tests: [/lost.*rank/], label: 'Lost impression share (rank)', unlocks: 'seeing whether ad quality or bids hold you back' },
     bid: { tests: ['bid strategy type', 'bid strategy', 'bidding strategy type'], label: 'Bid strategy type', unlocks: 'checking manual bidding' },
+    impr: { tests: ['impr.', 'impressions', 'impr'], label: 'Impressions', unlocks: 'weighting impression share correctly across days' },
+    share: { tests: ['search impr. share', 'impr. share (%)', 'impression share', 'search impression share', 'impr. share'], label: 'Search impr. share', unlocks: 'combining impression share accurately across days' },
+    date: { tests: ['day', 'date', 'week', 'month', 'quarter'], label: 'Day / week (optional)', unlocks: 'spotting trends across the period' },
     term: { tests: ['search term', 'search query'], label: 'Search term' },
     match: { tests: ['match type', 'search term match type', 'delivered match type', 'keyword match type', 'bid match type'], label: 'Match type', unlocks: 'measuring AI Mode exposure' }
   };
   const WANT = {
-    campaigns: { required: ['campaign', 'cost', 'conv'], recommended: ['type', 'value', 'lost', 'rank', 'bid', 'clicks'] },
-    terms: { required: ['term', 'cost', 'conv'], recommended: ['match', 'clicks', 'value'] }
+    campaigns: { required: ['campaign', 'cost', 'conv'], recommended: ['type', 'value', 'lost', 'rank', 'share', 'impr', 'date'] },
+    terms: { required: ['term', 'cost', 'conv'], recommended: ['match', 'value'] }
   };
 
   const readTable = text => {
@@ -136,157 +139,436 @@
     return { cols, data, kind, platform: ms ? 'Microsoft Advertising' : 'Google Ads', dateLine, fileTotal };
   };
 
-  /* ---------- analysis ---------- */
+  /* ---------- classification ---------- */
   const brandWords = () => (brandIn.value || '').toLowerCase().split(',').map(s => s.trim()).filter(s => s.length > 1);
-  const nonBrandName = n => /non[\s_\-|]*brand|nonbrand|generic/i.test(n);
-  const isBrandCampaign = n => !nonBrandName(n) && (/\bbrand/i.test(n) || brandWords().some(b => n.toLowerCase().includes(b)));
   const isBrandTerm = t => brandWords().some(b => t.includes(b));
+  const words = n => ' ' + n.toLowerCase().replace(/[_|\-–:/\\.,()[\]]+/g, ' ').replace(/\s+/g, ' ') + ' ';
 
+  const chanFromType = t => {
+    t = (t || '').toLowerCase();
+    if (!t.trim()) return null;
+    if (/performance max/.test(t)) return 'Performance Max';
+    if (/shopping/.test(t)) return 'Shopping';
+    if (/demand gen|discovery/.test(t)) return 'Demand Gen';
+    if (/video|youtube/.test(t)) return 'Video';
+    if (/display|audience/.test(t)) return 'Display';
+    if (/\bapp\b/.test(t)) return 'App';
+    if (/hotel|travel/.test(t)) return 'Travel';
+    if (/smart/.test(t)) return 'Smart';
+    if (/local/.test(t)) return 'Local';
+    if (/search/.test(t)) return 'Search';
+    return 'Other';
+  };
+  const chanFromName = n => {
+    const w = words(n);
+    if (/ pmax | p max | performance max /.test(w)) return 'Performance Max';
+    if (/ shopping | pla | smart shopping /.test(w)) return 'Shopping';
+    if (/ demand gen | dgen | discovery /.test(w)) return 'Demand Gen';
+    if (/ youtube | yt | video /.test(w)) return 'Video';
+    if (/ display | gdn | remarketing | rmkt | retargeting /.test(w)) return 'Display';
+    if (/ search | dsa | rlsa /.test(w)) return 'Search';
+    return null;
+  };
+  const PERF = new Set(['Search', 'Shopping', 'Performance Max']);
+  const AWARE = new Set(['Display', 'Video', 'Demand Gen']);
+  const IS_OK = new Set(['Search', 'Shopping']);
+
+  const classify = (c, hasType) => {
+    const w = words(c.name);
+    const typed = chanFromType(c.type);
+    const named = chanFromName(c.name);
+    c.channel = typed || named || 'Unknown';
+    c.chanSource = typed ? 'type' : (named ? 'name' : 'none');
+    c.mismatch = !!(typed && named && named !== typed && !(typed === 'Search' && named === 'Search'));
+    c.nameChan = named;
+    const userBrand = brandWords().some(b => c.name.toLowerCase().includes(b));
+    const nonBrand = / non brand | nonbrand | nb | generic | category | prospecting | prospect /.test(w);
+    const comp = / competitor | competitors | comp | conquest | conquesting | rival | vs /.test(w);
+    const dsa = / dsa | dynamic /.test(w);
+    const brandWord = / brand | branded /.test(w) && !/ brand awareness | brand building | brand lift | brand video /.test(w);
+    c.intent = 'Not applicable'; c.conf = 'n/a';
+    const searchLike = c.channel === 'Search' || (c.channel === 'Unknown' && !hasType);
+    if (searchLike) {
+      if (dsa) { c.intent = 'Dynamic Search Ads'; c.conf = 'medium'; }
+      else if (comp) { c.intent = 'Competitor'; c.conf = 'medium'; }
+      else if (nonBrand) { c.intent = 'Generic'; c.conf = 'medium'; }
+      else if (userBrand && brandWord) { c.intent = 'Brand'; c.conf = 'high'; }
+      else if (userBrand || brandWord) { c.intent = 'Brand'; c.conf = 'medium'; }
+      else { c.intent = 'Unclear'; c.conf = 'low'; }
+      if (c.channel === 'Unknown' && c.conf === 'high') c.conf = 'medium';
+    } else if (c.channel === 'Shopping') { c.intent = 'Shopping'; c.conf = c.chanSource === 'type' ? 'high' : 'low'; }
+    else if (c.channel === 'Performance Max') { c.intent = (userBrand || brandWord) ? 'Mixed (name mentions brand)' : 'Mixed'; c.conf = 'low'; }
+    else if (AWARE.has(c.channel)) { c.intent = 'Awareness or remarketing'; c.conf = c.chanSource === 'type' ? 'medium' : 'low'; }
+    else { c.intent = 'Unknown'; c.conf = 'low'; }
+    c.isBrand = c.intent === 'Brand';
+  };
+
+  /* ---------- dates ---------- */
+  const parseDate = (s, ms) => {
+    s = String(s || '').trim();
+    if (!s) return null;
+    let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return new Date(+m[1], m[2] - 1, +m[3]);
+    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+      let a = +m[1], b = +m[2];
+      const dayFirst = a > 12 ? true : (b > 12 ? false : !ms);
+      return dayFirst ? new Date(+m[3], b - 1, a) : new Date(+m[3], a - 1, b);
+    }
+    const t = Date.parse(s.replace(/^[A-Za-z]{3,9},?\s+/, ''));
+    return isNaN(t) ? null : new Date(t);
+  };
+  const fmtDate = d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  /* ---------- campaign analysis ---------- */
   const analyseCampaigns = t => {
-    const c = t.cols, th = TH();
+    const c = t.cols;
     if (c.cost < 0) return { error: 'I could not find a Cost or Spend column in the campaign report.' };
+    const ms = t.platform === 'Microsoft Advertising';
     const map = new Map();
+    const byDate = new Map();
+    let dated = 0;
     t.data.forEach(r => {
       const name = String(r[c.campaign] || '').trim();
-      if (!name) return;
+      if (!name || name === '--') return;
       const cost = num(r[c.cost]) || 0, conv = c.conv >= 0 ? (num(r[c.conv]) || 0) : 0, value = c.value >= 0 ? (num(r[c.value]) || 0) : 0;
-      if (!cost && !conv) return;
-      const lost = c.lost >= 0 ? num(r[c.lost]) : NaN, rank = c.rank >= 0 ? num(r[c.rank]) : NaN;
-      const type = c.type >= 0 ? String(r[c.type] || '') : '';
-      const bid = c.bid >= 0 ? String(r[c.bid] || '') : '';
-      const e = map.get(name) || { name, type, bid, cost: 0, conv: 0, value: 0, lost: NaN, rank: NaN };
-      e.cost += cost; e.conv += conv; e.value += value;
-      if (!isNaN(lost)) e.lost = isNaN(e.lost) ? lost : Math.max(e.lost, lost);
-      if (!isNaN(rank)) e.rank = isNaN(e.rank) ? rank : Math.max(e.rank, rank);
-      map.set(name, e);
+      const clicks = c.clicks >= 0 ? (num(r[c.clicks]) || 0) : 0, impr = c.impr >= 0 ? (num(r[c.impr]) || 0) : 0;
+      const type = c.type >= 0 ? String(r[c.type] || '').trim() : '';
+      const key = name + '\u0000' + type;
+      const e = map.get(key) || { name, type, bid: '', cost: 0, conv: 0, value: 0, clicks: 0, impr: 0, rows: 0, is: { elig: 0, lb: 0, lr: 0, w: 0, wlb: 0, wlr: 0, n: 0, slb: 0, slr: 0, approx: false, seen: false }, periods: new Map() };
+      e.cost += cost; e.conv += conv; e.value += value; e.clicks += clicks; e.impr += impr; e.rows++;
+      if (c.bid >= 0 && !e.bid) e.bid = String(r[c.bid] || '');
+      const lb = c.lost >= 0 ? num(r[c.lost]) : NaN, lr = c.rank >= 0 ? num(r[c.rank]) : NaN, sh = c.share >= 0 ? num(r[c.share]) : NaN;
+      if (!isNaN(lb) || !isNaN(lr)) {
+        e.is.seen = true;
+        if (!isNaN(sh) && sh > 0 && impr > 0) {
+          const elig = impr / (sh / 100);
+          e.is.elig += elig; e.is.lb += elig * ((isNaN(lb) ? 0 : lb) / 100); e.is.lr += elig * ((isNaN(lr) ? 0 : lr) / 100);
+        } else if (impr > 0) {
+          e.is.w += impr; e.is.wlb += impr * (isNaN(lb) ? 0 : lb); e.is.wlr += impr * (isNaN(lr) ? 0 : lr); e.is.approx = true;
+        } else {
+          e.is.n++; e.is.slb += isNaN(lb) ? 0 : lb; e.is.slr += isNaN(lr) ? 0 : lr; e.is.approx = true;
+        }
+      }
+      if (c.date >= 0) {
+        const d = parseDate(r[c.date], ms);
+        if (d) {
+          dated++;
+          const k = d.getTime();
+          const p = byDate.get(k) || { cost: 0, conv: 0, value: 0 };
+          p.cost += cost; p.conv += conv; p.value += value; byDate.set(k, p);
+          const q = e.periods.get(k) || { cost: 0, conv: 0, value: 0 };
+          q.cost += cost; q.conv += conv; q.value += value; e.periods.set(k, q);
+        }
+      }
+      map.set(key, e);
     });
-    const list = [...map.values()];
+    const list = [...map.values()].filter(x => x.cost > 0 || x.conv > 0);
     if (!list.length) return { error: 'The campaign report had no rows with spend in it.' };
+    const hasType = c.type >= 0;
+    const isPerf = x => PERF.has(x.channel) || (x.channel === 'Unknown' && !hasType);
+    list.forEach(x => {
+      classify(x, hasType);
+      const i = x.is;
+      x.lost = NaN; x.rank = NaN; x.isApprox = false;
+      if (i.seen && IS_OK.has(x.channel)) {
+        if (i.elig > 0 && !i.approx) { x.lost = i.lb / i.elig * 100; x.rank = i.lr / i.elig * 100; }
+        else if (i.elig + i.w > 0) { const tot = i.elig + i.w; x.lost = (i.lb * 100 + i.wlb) / tot; x.rank = (i.lr * 100 + i.wlr) / tot; x.isApprox = x.rows > 1; }
+        else if (i.n) { x.lost = i.slb / i.n; x.rank = i.slr / i.n; x.isApprox = x.rows > 1; }
+      }
+    });
     const sum = (arr, k) => arr.reduce((a, x) => a + x[k], 0);
     const cost = sum(list, 'cost'), conv = sum(list, 'conv'), value = sum(list, 'value');
-    const useValue = value > 0;
-    const cpa = conv ? cost / conv : NaN, roas = cost && value ? value / cost : NaN;
-    list.forEach(x => { x.brand = isBrandCampaign(x.name); x.pmax = /performance max|pmax|p-max/i.test(x.type + ' ' + x.name); });
-    const nb = list.filter(x => !x.brand);
-    const nbCost = sum(nb, 'cost'), nbConv = sum(nb, 'conv'), nbValue = sum(nb, 'value');
-    const baseRoas = nbCost && nbValue ? nbValue / nbCost : roas, baseCpa = nbConv ? nbCost / nbConv : cpa;
+    const useValue = value > 0 && sum(list.filter(x => x.value > 0), 'cost') >= 0.5 * sum(list.filter(x => PERF.has(x.channel)), 'cost');
+    const eff = (cs, cv, vl) => useValue ? (cs ? vl / cs : NaN) : (cv ? cs / cv : NaN);
+    const comparable = list.filter(x => isPerf(x) && !x.isBrand);
+    const base = eff(sum(comparable, 'cost'), sum(comparable, 'conv'), sum(comparable, 'value'));
     list.forEach(x => {
-      x.cpa = x.conv ? x.cost / x.conv : NaN;
-      x.roas = x.cost && x.value ? x.value / x.cost : NaN;
-      x.idx = x.conv < 0.5 ? 0 : (useValue && isFinite(baseRoas) ? (x.value / x.cost) / baseRoas : baseCpa / x.cpa);
-      x.low = x.conv < th.lowDataConversions;
-      if (x.brand) x.verdict = ['info', 'Brand: judge separately'];
-      else if (x.conv < 0.5) x.verdict = ['bad', 'No conversions: question it'];
-      else if (x.idx >= th.workingIndex && x.lost > th.lostBudgetCap) x.verdict = ['great', 'Working, held back by budget'];
-      else if (x.idx >= th.workingIndex && x.rank > th.lostRankHigh) x.verdict = ['good', 'Working, losing on rank'];
-      else if (x.idx >= th.workingIndex) x.verdict = ['good', 'Working: protect it'];
-      else if (x.idx >= th.weakIndex) x.verdict = ['mid', 'Around average: tune'];
-      else x.verdict = ['bad', 'Below average: fix or trim'];
+      x.eff = eff(x.cost, x.conv, x.value);
+      x.idx = !isFinite(base) || !isFinite(x.eff) || x.conv < 0.5 ? NaN : (useValue ? x.eff / base : base / x.eff);
     });
-    const winners = nb.filter(x => x.verdict[1] === 'Working, held back by budget');
-    const rankLosers = list.filter(x => x.rank > th.lostRankHigh && !x.pmax);
-    const manual = list.filter(x => /manual|cpc/i.test(x.bid) && !/enhanced/i.test(x.bid) && x.conv >= th.lowDataConversions);
-    return {
-      list, cost, conv, value, useValue, cpa, roas, baseRoas, baseCpa, nb,
-      brand: list.filter(x => x.brand), pmax: list.filter(x => x.pmax), zero: list.filter(x => x.conv < 0.5 && x.cost > 0),
-      winners, rankLosers, manual, hasLost: c.lost >= 0, hasRank: c.rank >= 0, hasBid: c.bid >= 0,
-      top: list.slice().sort((a, b) => b.cost - a.cost)[0], n: list.length, lowCount: nb.filter(x => x.low && x.conv >= 0.5).length
-    };
+    // a "brand" campaign that performs like non-brand is probably not pure brand
+    list.filter(x => x.isBrand).forEach(x => { if (isFinite(x.idx) && x.idx < 1.3) { x.conf = 'low'; x.brandWeak = true; } });
+    // period info
+    let periodLabel = t.dateLine || '';
+    let dates = [...byDate.keys()].sort((a, b) => a - b);
+    if (dates.length) periodLabel = `${fmtDate(new Date(dates[0]))} to ${fmtDate(new Date(dates[dates.length - 1]))}`;
+    return { list, cost, conv, value, useValue, base, comparable, byDate, dates, dated, periodLabel, n: list.length, hasIS: c.lost >= 0 || c.rank >= 0, hasType, isPerf };
   };
 
-  const STOP = new Set('the and for with from near what how why best uk you your are can does buy online sale shop shops store stores in on of to a an is it my me at or by vs not this that do'.split(' '));
-  const WASTE = new Set('free jobs job salary salaries career careers vacancy vacancies diy course courses pdf login meaning definition template templates download second used repair repairs clean cleaning paint painting plans tutorial ideas wiki reddit youtube internship apprenticeship manual instructions'.split(' '));
-  const matchBucket = m => {
-    m = (m || '').toLowerCase();
-    if (/broad/.test(m)) return 'Broad match';
-    if (/phrase/.test(m)) return 'Phrase match';
-    if (/exact/.test(m)) return 'Exact match';
-    if (/performance max|pmax/.test(m)) return 'Performance Max';
-    if (/ai max|search term matching|dynamic|dsa|url/.test(m)) return 'AI Max or dynamic';
-    return m ? 'Other' : 'Not stated';
-  };
-
+  /* ---------- search terms analysis ---------- */
   const analyseTerms = t => {
-    const c = t.cols, th = TH();
+    const c = t.cols;
     if (c.cost < 0) return { error: 'I could not find a Cost or Spend column in the search terms report.' };
     const map = new Map();
-    let hiddenCost = 0;
+    let hidden = 0;
     t.data.forEach(r => {
       const term = String(r[c.term] || '').trim().toLowerCase();
       if (!term || term === '--') return;
-      const cost = num(r[c.cost]) || 0, conv = c.conv >= 0 ? (num(r[c.conv]) || 0) : 0, clicks = c.clicks >= 0 ? (num(r[c.clicks]) || 0) : 0;
-      const value = c.value >= 0 ? (num(r[c.value]) || 0) : 0;
-      if (/^other search terms/.test(term)) { hiddenCost += cost; return; }
-      const match = c.match >= 0 ? matchBucket(r[c.match]) : 'Not stated';
-      const e = map.get(term) || { term, cost: 0, conv: 0, clicks: 0, value: 0, matches: {} };
-      e.cost += cost; e.conv += conv; e.clicks += clicks; e.value += value;
-      e.matches[match] = (e.matches[match] || 0) + cost;
-      map.set(term, e);
+      const cost = num(r[c.cost]) || 0, conv = c.conv >= 0 ? (num(r[c.conv]) || 0) : 0;
+      if (/^other search terms/.test(term)) { hidden += cost; return; }
+      const e = map.get(term) || { term, cost: 0, conv: 0 };
+      e.cost += cost; e.conv += conv; map.set(term, e);
     });
     const list = [...map.values()];
     if (!list.length) return { error: 'The search terms report had no search terms with data.' };
-    const cost = list.reduce((a, x) => a + x.cost, 0) + hiddenCost, conv = list.reduce((a, x) => a + x.conv, 0);
-    const zero = list.filter(x => x.conv < 0.5);
-    const zeroCost = zero.reduce((a, x) => a + x.cost, 0);
-    const wasted = zero.slice().sort((a, b) => b.cost - a.cost).filter(x => x.cost > 0).slice(0, 8);
-    const best = list.filter(x => x.conv >= 0.5 && !isBrandTerm(x.term)).sort((a, b) => b.conv - a.conv || a.cost - b.cost).slice(0, 6);
-    const brand = list.filter(x => isBrandTerm(x.term));
-    const brandCost = brand.reduce((a, x) => a + x.cost, 0), brandConv = brand.reduce((a, x) => a + x.conv, 0);
-    const long = list.filter(x => x.term.split(/\s+/).length >= 5);
-    const longCost = long.reduce((a, x) => a + x.cost, 0);
-    const mix = {};
-    list.forEach(x => Object.entries(x.matches).forEach(([k, v]) => { mix[k] = (mix[k] || 0) + v; }));
-    const openCost = (mix['Broad match'] || 0) + (mix['Performance Max'] || 0) + (mix['AI Max or dynamic'] || 0);
-    const bw = brandWords().flatMap(b => b.split(/\s+/));
-    const convWords = new Set();
-    list.filter(x => x.conv >= 0.5).forEach(x => x.term.split(/\s+/).forEach(w => convWords.add(w)));
-    const wordCost = {}, wordN = {};
-    zero.forEach(x => new Set(x.term.split(/\s+/)).forEach(w => {
-      if (w.length < 3 || STOP.has(w) || convWords.has(w) || bw.includes(w) || /^\d+$/.test(w)) return;
-      wordCost[w] = (wordCost[w] || 0) + x.cost;
-      wordN[w] = (wordN[w] || 0) + 1;
-    }));
-    const negWords = Object.entries(wordCost).filter(e => e[1] > 0 && (wordN[e[0]] > 1 || WASTE.has(e[0]))).sort((a, b) => b[1] - a[1]).slice(0, 10);
-    return { list, cost, conv, zeroCost, wasted, best, brandCost, brandConv, longCost, mix, openCost, hasMatch: c.match >= 0, negWords, hiddenCost, n: list.length, th };
+    const cost = list.reduce((a, x) => a + x.cost, 0) + hidden, conv = list.reduce((a, x) => a + x.conv, 0);
+    const zeroCost = list.filter(x => x.conv < 0.5).reduce((a, x) => a + x.cost, 0);
+    const longCost = list.filter(x => x.term.split(/\s+/).length >= 5).reduce((a, x) => a + x.cost, 0);
+    const qCost = list.filter(x => /^(how|what|why|which|when|where|can|is|are|do|does|should)\b/.test(x.term)).reduce((a, x) => a + x.cost, 0);
+    const brandCost = list.filter(x => isBrandTerm(x.term)).reduce((a, x) => a + x.cost, 0);
+    return { list, cost, conv, zeroCost, longCost, qCost, brandCost, hidden, n: list.length };
+  };
+
+  /* ---------- insight engine: compute candidates, score, pick the strongest few ---------- */
+  const fmtEff = (v, useValue) => !isFinite(v) ? 'n/a' : (useValue ? v.toFixed(2) + 'x ROAS' : gbp2(v) + ' per conversion');
+  const pctDiff = idx => Math.round(Math.abs(idx - 1) * 100);
+  const list3 = names => names.length <= 2 ? names.join(' and ') : names.slice(0, 2).join(', ') + ' and ' + (names.length - 2) + ' more';
+  const q = s => '‘' + s + '’';
+
+  const candidates = (C, T) => {
+    const out = [];
+    const add = (o) => { if (o) out.push({ evidence: 1, distinct: 0.7, ...o, score: 40 * Math.min(1, o.sig) + 30 * Math.min(1, o.mag) + 20 * (o.evidence ?? 1) + 10 * (o.distinct ?? 0.7) }); };
+    if (C) {
+      const tot = C.cost, uv = C.useValue;
+      const sum = (arr, k) => arr.reduce((a, x) => a + x[k], 0);
+      const eff = arr => uv ? sum(arr, 'value') / sum(arr, 'cost') : sum(arr, 'cost') / sum(arr, 'conv');
+
+      // 1. brand vs non-brand
+      const brand = C.list.filter(x => x.isBrand && x.conf !== 'low');
+      const nb = C.comparable;
+      const bCost = sum(brand, 'cost'), nbCost = sum(nb, 'cost');
+      if (brand.length && bCost / tot >= 0.03 && nbCost / tot >= 0.2 && sum(brand, 'conv') >= 5) {
+        const be = eff(brand), ne = eff(nb);
+        const ratio = uv ? be / ne : ne / be;
+        if (isFinite(ratio) && ratio >= 2) add({
+          id: 'brand', family: 'brand', sig: (bCost + nbCost) / tot, mag: Math.log2(ratio) / 3, evidence: brand.some(x => x.conf === 'high') ? 0.9 : 0.7, distinct: 0.8,
+          head: 'Brand and non-brand are telling very different stories',
+          metrics: [`Brand: ${fmtEff(be, uv)}`, `Non-brand: ${fmtEff(ne, uv)}`],
+          text: `${uv ? `Brand search is returning around ${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)} times what the rest of your performance activity does` : `Brand search is converting at around ${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)} times lower cost than the rest of your performance activity`}. Looking at the overall account average alone may be hiding part of the picture, and brand results raise their own question about how much of that demand would have arrived anyway.`,
+          note: brand.some(x => x.conf === 'high') ? '' : 'Brand campaigns identified from their names.'
+        });
+      }
+
+      // 2. growth signals: stronger Search/Shopping campaigns losing impression share to budget
+      const growth = C.list.filter(x => IS_OK.has(x.channel) && !x.isBrand && x.idx >= 1.15 && x.lost >= 15 && x.cost / tot >= 0.02 && x.conv >= 5);
+      if (growth.length) {
+        const maxLost = Math.max(...growth.map(x => x.lost));
+        const approx = growth.some(x => x.isApprox);
+        add({
+          id: 'growth', family: 'budget', sig: sum(growth, 'cost') / tot * 2, mag: Math.min(1, maxLost / 40) * Math.min(1, (Math.max(...growth.map(x => x.idx)) - 1) / 0.5), evidence: approx ? 0.6 : 0.9, distinct: 1,
+          head: 'Some stronger Search campaigns are running into budget limits',
+          metrics: [`${growth.length} campaign${growth.length > 1 ? 's' : ''}`, `up to ${Math.round(maxLost)}% of impressions lost to budget`],
+          text: `${list3(growth.map(x => q(x.name)))} ${growth.length > 1 ? 'are' : 'is'} returning above the comparable average while also reporting meaningful impression share lost to budget. That could be worth exploring in more detail, although strong past returns don't guarantee the same from extra spend, and lost impression share isn't the same as lost revenue.`,
+          note: approx ? 'Impression share is combined across days, so it\'s approximate.' : ''
+        });
+      }
+
+      // 3. below-average investment among comparable campaigns
+      const weak = C.comparable.filter(x => isFinite(x.idx) && x.idx <= 0.65 && x.cost / tot >= 0.02);
+      const wCost = sum(weak, 'cost');
+      if (weak.length && wCost / tot >= 0.1) {
+        const wIdx = uv ? (sum(weak, 'value') / wCost) / C.base : C.base / (wCost / Math.max(1, sum(weak, 'conv')));
+        add({
+          id: 'weak', family: 'efficiency', sig: wCost / tot * 1.5, mag: 1 - wIdx, evidence: 0.9, distinct: 0.9,
+          head: 'A meaningful share of investment is going into below-average campaigns',
+          metrics: [`${gbp(wCost)} · ${pct(wCost / tot)} of spend`, uv ? `${pctDiff(wIdx)}% lower return than comparable activity` : `${pctDiff(1 / wIdx)}% higher cost per conversion`],
+          text: `${list3(weak.sort((a, b) => b.cost - a.cost).map(x => q(x.name)))} ${weak.length > 1 ? 'are' : 'is'} delivering noticeably weaker reported returns than similar campaigns in the account. Understanding what's driving that difference could reveal opportunities. Lower reported returns don't necessarily mean unprofitable, as margins and each campaign's role matter.`
+        });
+      }
+
+      // 4. spend with no reported conversions
+      const zero = C.list.filter(x => x.conv < 0.5 && x.cost > 0);
+      const zCost = sum(zero, 'cost');
+      if (zCost / tot >= 0.04) {
+        const aware = zero.filter(x => AWARE.has(x.channel));
+        const mostlyAware = sum(aware, 'cost') >= 0.6 * zCost;
+        add({
+          id: 'zero', family: 'zero', sig: zCost / tot * 2, mag: Math.min(1, zCost / tot / 0.2), evidence: 0.9, distinct: 0.7,
+          head: `${pct(zCost / tot)} of spend has no reported conversions`,
+          metrics: [`${gbp(zCost)}`, `${zero.length} campaign${zero.length > 1 ? 's' : ''}`],
+          text: mostlyAware
+            ? `Most of it sits in ${[...new Set(aware.map(x => x.channel))].join(' and ')} activity, which may well have an awareness or remarketing role. If so, the interesting question is how that role is being measured, because the campaign export alone can't show it.`
+            : `It sits mainly in ${list3(zero.sort((a, b) => b.cost - a.cost).map(x => q(x.name)))}. Reported conversions aren't the whole story, but it's worth being clear on what that activity is there to do and how it's judged.`
+        });
+      }
+
+      // 5. concentration
+      const sorted = C.list.slice().sort((a, b) => b.cost - a.cost);
+      const top = sorted[0];
+      const topShare = top.cost / tot, top2 = sorted.length > 1 ? (top.cost + sorted[1].cost) / tot : topShare;
+      if (C.n >= 3 && (topShare >= 0.35 || top2 >= 0.55)) {
+        const rest = C.comparable.filter(x => x !== top);
+        const diff = isFinite(top.idx) && rest.length ? top.idx : NaN;
+        const interesting = topShare >= 0.5 || (isFinite(diff) && Math.abs(diff - 1) >= 0.2);
+        if (interesting) add({
+          id: 'conc', family: top.channel === 'Performance Max' ? 'channel' : 'concentration', sig: topShare, mag: Math.min(1, (topShare - 0.25) / 0.5) + (isFinite(diff) ? Math.min(0.5, Math.abs(diff - 1)) : 0), evidence: 1, distinct: 0.6,
+          head: topShare >= 0.35 ? `One campaign carries ${pct(topShare)} of the account` : `Two campaigns carry ${pct(top2)} of the account`,
+          metrics: [q(top.name), `${top.channel}`],
+          text: `That isn't a problem in itself, but it means the account's overall results are closely tied to how ${topShare >= 0.35 ? 'one campaign behaves' : 'two campaigns behave'}.` + (isFinite(diff) && Math.abs(diff - 1) >= 0.2 ? ` ${q(top.name)} is also returning ${diff > 1 ? 'better' : 'worse'} than comparable activity by about ${pctDiff(diff)}%, so it shapes the headline more than it might appear.` : '')
+        });
+      }
+
+      // 6. Performance Max vs non-brand Search
+      const pm = C.list.filter(x => x.channel === 'Performance Max');
+      const ns = C.list.filter(x => x.channel === 'Search' && !x.isBrand);
+      const pmCost = sum(pm, 'cost'), nsCost = sum(ns, 'cost');
+      if (pmCost / tot >= 0.15 && nsCost / tot >= 0.15 && sum(pm, 'conv') >= 20 && sum(ns, 'conv') >= 20) {
+        const pe = eff(pm), se = eff(ns);
+        const r = uv ? pe / se : se / pe;
+        if (isFinite(r) && (r >= 1.4 || r <= 0.7)) add({
+          id: 'pmax', family: 'channel', sig: (pmCost + nsCost) / tot, mag: Math.min(1, Math.abs(Math.log2(r)) / 1.5), evidence: 0.8, distinct: 0.8,
+          head: 'Performance Max and non-brand Search are returning quite differently',
+          metrics: [`Performance Max: ${fmtEff(pe, uv)}`, `Non-brand Search: ${fmtEff(se, uv)}`],
+          text: `They aren't quite like-for-like. Performance Max blends several channels and can pick up searches for your own brand, which tends to lift its headline return${r < 1 ? ', so trailing Search here is notable' : ''}. Separating those effects is usually where the useful answers are.`
+        });
+      } else if (pmCost / tot >= 0.5) {
+        add({
+          id: 'pmaxshare', family: 'channel', sig: pmCost / tot, mag: (pmCost / tot - 0.4) / 0.5, evidence: 0.9, distinct: 0.5,
+          head: `Performance Max carries ${pct(pmCost / tot)} of the investment`,
+          metrics: [`${pm.length} campaign${pm.length > 1 ? 's' : ''}`, gbp(pmCost)],
+          text: 'That makes the account heavily reliant on one automated campaign type. Its headline results blend channels and can include brand searches, so a campaign export alone can\'t show what it is genuinely adding.'
+        });
+      }
+
+      // 7. structure: names that don't match what campaigns are
+      const mm = C.list.filter(x => x.mismatch);
+      if (C.hasType && mm.length && (mm.length >= 2 || mm[0].cost / tot >= 0.05)) {
+        const ex = mm.sort((a, b) => b.cost - a.cost)[0];
+        add({
+          id: 'names', family: 'structure', sig: sum(mm, 'cost') / tot + 0.2, mag: Math.min(1, mm.length / 4), evidence: 1, distinct: 0.6,
+          head: "Campaign names don't always match what the campaigns are",
+          metrics: [`${mm.length} of ${C.n} campaigns`],
+          text: `For example, ${q(ex.name)} reads like ${/^[aeiou]/i.test(ex.nameChan) ? 'an' : 'a'} ${ex.nameChan} campaign but runs as ${/^[aeiou]/i.test(ex.channel) ? 'an' : 'a'} ${ex.channel} campaign. It sounds minor, but inconsistent naming makes performance much harder to read at a glance, especially for anyone new to the account.`
+        });
+      }
+
+      // 8. structure: brand not clearly separated
+      const searchCost = sum(C.list.filter(x => x.channel === 'Search'), 'cost');
+      const unclear = C.list.filter(x => x.channel === 'Search' && (x.intent === 'Unclear' || x.brandWeak));
+      const brandAny = C.list.some(x => x.isBrand && !x.brandWeak);
+      if (searchCost / tot >= 0.2 && (!brandAny || sum(unclear, 'cost') / searchCost >= 0.3)) {
+        add({
+          id: 'brandsep', family: 'brand', sig: searchCost / tot, mag: !brandAny ? 0.6 : sum(unclear, 'cost') / searchCost, evidence: 0.5, distinct: 0.6,
+          head: !brandAny ? "Brand and non-brand aren't clearly separated" : 'Part of the Search activity is hard to classify',
+          metrics: [!brandAny ? 'No clear brand campaign' : `${pct(sum(unclear, 'cost') / searchCost)} of Search spend`],
+          text: !brandAny
+            ? "From the campaign data alone, it isn't clear where searches for your own brand sit. If they're blended with non-brand, the combined return can make both look different from reality."
+            : `Campaigns such as ${q(unclear.sort((a, b) => b.cost - a.cost)[0].name)} don't make their purpose clear from their names or results. That's common in accounts that have grown over time, and it makes the true brand and non-brand picture harder to see.`,
+          note: 'Based on campaign names and reported results.'
+        });
+      }
+
+      // 9. fragmentation
+      const perfC = C.list.filter(C.isPerf);
+      const lowData = perfC.filter(x => x.conv < (TH().lowDataConversions || 15));
+      if (perfC.length >= 12 && lowData.length / perfC.length >= 0.5) {
+        add({
+          id: 'frag', family: 'structure', sig: sum(lowData, 'cost') / tot + 0.2, mag: lowData.length / perfC.length, evidence: 0.8, distinct: 0.6,
+          head: 'Results are spread across a lot of small campaigns',
+          metrics: [`${lowData.length} of ${perfC.length} campaigns`, `under ${TH().lowDataConversions || 15} conversions each`],
+          text: "That isn't automatically a problem, and plenty of accounts are structured this way for good reasons. It does mean automated bidding has less to learn from in each campaign, which can make results more volatile."
+        });
+      }
+
+      // 10. trend across the period
+      if (C.dates.length >= 14) {
+        const mid = C.dates[Math.floor(C.dates.length / 2)];
+        const half = (k) => { const a = { cost: 0, conv: 0, value: 0 }; C.byDate.forEach((v, d) => { if ((d < mid) === (k === 0)) { a.cost += v.cost; a.conv += v.conv; a.value += v.value; } }); return a; };
+        const h1 = half(0), h2 = half(1);
+        const e1 = uv ? h1.value / h1.cost : h1.cost / h1.conv, e2 = uv ? h2.value / h2.cost : h2.cost / h2.conv;
+        const change = uv ? e2 / e1 - 1 : e1 / e2 - 1;
+        const enough = Math.min(h1.conv, h2.conv) >= 30;
+        if (enough && isFinite(change) && Math.abs(change) >= 0.15) {
+          let mover = null, best = 0;
+          C.list.forEach(x => {
+            const a = { cost: 0, conv: 0, value: 0 }, b2 = { cost: 0, conv: 0, value: 0 };
+            x.periods.forEach((v, d) => { const t2 = d < mid ? a : b2; t2.cost += v.cost; t2.conv += v.conv; t2.value += v.value; });
+            const delta = uv ? (b2.value - a.value) : (b2.conv - a.conv);
+            if (Math.sign(delta) === Math.sign(change) && Math.abs(delta) > best) { best = Math.abs(delta); mover = x; }
+          });
+          const spendChange = h2.cost / h1.cost - 1;
+          add({
+            id: 'trend', family: 'trend', sig: 0.7, mag: Math.min(1, Math.abs(change) / 0.4), evidence: 0.85, distinct: 0.95,
+            head: change < 0 ? 'Returns weakened noticeably through the period' : 'Returns improved noticeably through the period',
+            metrics: [`${fmtEff(e1, uv)} → ${fmtEff(e2, uv)}`, `spend ${spendChange >= 0 ? 'up' : 'down'} ${pct(Math.abs(spendChange))}`],
+            text: `Comparing the first and second half of the period, ${uv ? 'return on ad spend' : 'cost per conversion'} moved by about ${pct(Math.abs(change))}${mover ? `, and ${q(mover.name)} accounts for more of the shift than any other campaign` : ''}. It's worth knowing whether that's seasonal, competitive or something that changed in the account.`
+          });
+        } else {
+          // the account held steady overall, but has a significant campaign moved?
+          let pick = null, pickScore = 0;
+          C.list.filter(x => C.isPerf(x) && x.cost / tot >= 0.1).forEach(x => {
+            const a = { cost: 0, conv: 0, value: 0 }, b2 = { cost: 0, conv: 0, value: 0 };
+            x.periods.forEach((v, d) => { const t2 = d < mid ? a : b2; t2.cost += v.cost; t2.conv += v.conv; t2.value += v.value; });
+            if (Math.min(a.conv, b2.conv) < 15 || !a.cost || !b2.cost) return;
+            const x1 = uv ? a.value / a.cost : a.cost / a.conv, x2 = uv ? b2.value / b2.cost : b2.cost / b2.conv;
+            const ch = uv ? x2 / x1 - 1 : x1 / x2 - 1;
+            const sc = Math.abs(ch) * (x.cost / tot);
+            if (Math.abs(ch) >= 0.25 && sc > pickScore) { pickScore = sc; pick = { x, x1, x2, ch }; }
+          });
+          if (pick) add({
+            id: 'ctrend', family: 'trend', sig: pick.x.cost / tot * 2, mag: Math.min(1, Math.abs(pick.ch) / 0.5), evidence: 0.8, distinct: 0.95,
+            head: `${q(pick.x.name)} has ${pick.ch < 0 ? 'weakened' : 'strengthened'} through the period`,
+            metrics: [`${fmtEff(pick.x1, uv)} \u2192 ${fmtEff(pick.x2, uv)}`, `${pct(pick.x.cost / tot)} of spend`],
+            text: `Its ${uv ? 'return on ad spend' : 'cost per conversion'} moved by about ${pct(Math.abs(pick.ch))} between the first and second half of the period, while the account overall held fairly steady. It's worth understanding whether that's seasonal, competitive or something that changed in the campaign.`
+          });
+        }
+      }
+    }
+
+    if (T) {
+      const ws = T.cost ? T.zeroCost / T.cost : 0;
+      if (ws >= 0.15) add({
+        id: 'terms', family: 'terms', sig: ws * 1.5, mag: Math.min(1, ws / 0.35), evidence: 0.85, distinct: 0.8,
+        head: "A noticeable share of search spend isn't reaching converting searches",
+        metrics: [`${pct(ws)} of search term spend`, gbp(T.zeroCost)],
+        text: "Some of that is the normal cost of finding new demand. The pattern in which searches are involved is often more revealing than the total, and it's one of the first things a deeper review looks at."
+      });
+      const ls = T.cost ? T.longCost / T.cost : 0, qs = T.cost ? T.qCost / T.cost : 0;
+      if (ls >= 0.2 || qs >= 0.12) add({
+        id: 'long', family: 'terms2', sig: Math.max(ls, qs), mag: Math.min(1, Math.max(ls, qs) / 0.4), evidence: 0.8, distinct: 0.75,
+        head: 'Searches are getting longer and more conversational',
+        metrics: [`${pct(ls)} of spend on 5+ word searches`, `${pct(qs)} on question-style searches`],
+        text: "That's the kind of search Google's AI Mode encourages, and ads are due to start appearing there in the UK. Accounts relying on broad match or Performance Max are most exposed to how that changes things."
+      });
+    }
+    return out;
+  };
+
+  const select = cands => {
+    const sorted = cands.filter(c => c.score >= 30).sort((a, b) => b.score - a.score);
+    const picked = [], fam = new Set();
+    for (const c of sorted) {
+      if (fam.has(c.family)) continue;
+      if (picked.length >= 3 && c.score < 50) break;
+      picked.push(c); fam.add(c.family);
+      if (picked.length === 4) break;
+    }
+    return picked;
   };
 
   /* ---------- rendering ---------- */
-  const sig = (label, valueText, share, level, note, rule) => {
-    const w = Math.max(2, Math.min(100, Math.round((share || 0) * 100)));
-    const tag = { good: 'Looks healthy', look: 'Worth a look', priority: 'Priority', info: 'For context' }[level];
-    return `<div class="sig ${level}"><div class="sigtop"><span>${esc(label)}</span><b>${esc(valueText)}</b></div><div class="sigbar"><i style="width:${w}%"></i></div><div class="sigfoot"><em>${tag}</em><span>${esc(note)}</span></div>${rule ? ruleLink(rule) : ''}</div>`;
-  };
-
   const readCheck = (t, a, kind) => {
     const want = WANT[kind];
     const found = k => t.cols[k] >= 0;
     const chips = [...want.required, ...want.recommended].map(k => {
-      const ok = found(k);
-      const req = want.required.includes(k);
+      const ok = found(k), req = want.required.includes(k);
       return `<span class="col ${ok ? 'ok' : (req ? 'miss req' : 'miss')}" title="${ok ? 'Found' : (COLS[k].unlocks ? 'Add it to unlock ' + COLS[k].unlocks : 'Missing')}">${ok ? '✓' : '+'} ${esc(COLS[k].label)}</span>`;
     }).join('');
     const missing = want.recommended.filter(k => !found(k) && COLS[k].unlocks).map(k => `<li><b>${esc(COLS[k].label)}</b> unlocks ${esc(COLS[k].unlocks)}.</li>`).join('');
-    const readCost = a.cost;
-    let rec = '';
+    let rec;
     if (t.fileTotal && isFinite(t.fileTotal.cost)) {
-      const diff = Math.abs(t.fileTotal.cost - readCost);
-      const ok = diff <= Math.max(1, t.fileTotal.cost * 0.005);
-      rec = `<p class="rc ${ok ? 'ok' : 'warn'}">${ok ? '✓' : '!'} Your file's total spend is ${gbp2(t.fileTotal.cost)}. The X-ray read ${gbp2(readCost)}${ok ? ', so every row was counted.' : '. The difference is usually removed or filtered rows. Check the export includes every campaign.'}</p>`;
-    } else {
-      rec = `<p class="rc">The file has no total row, so check this against your account: the X-ray read ${gbp2(readCost)} of spend.</p>`;
-    }
-    const rows = kind === 'campaigns' ? `${int(a.n)} campaigns` : `${int(a.n)} search terms`;
-    return `<div class="readcheck"><div class="rchead"><b>${esc(t.platform)} ${kind === 'terms' ? 'search terms report' : 'campaign report'}</b><span>${rows}${t.dateLine ? ' · ' + esc(t.dateLine) : ''}</span></div>${rec}<div class="cols">${chips}</div>${missing ? `<details><summary>Add these columns next time for a fuller read</summary><ul>${missing}</ul></details>` : ''}</div>`;
+      const ok = Math.abs(t.fileTotal.cost - a.cost) <= Math.max(1, t.fileTotal.cost * 0.005);
+      rec = `<p class="rc ${ok ? 'ok' : 'warn'}">${ok ? '✓' : '!'} Your file's total spend is ${gbp2(t.fileTotal.cost)}. The X-ray read ${gbp2(a.cost)}${ok ? ', so every row was counted once.' : '. The difference is usually removed or filtered rows.'}</p>`;
+    } else rec = `<p class="rc">There's no total row in the file, so check this against your account: the X-ray read ${gbp2(a.cost)} of spend.</p>`;
+    const rows = kind === 'campaigns' ? `${int(a.n)} campaigns${a.dated ? ` from ${int(t.data.length)} daily or weekly rows` : ''}` : `${int(a.n)} search terms`;
+    return `<div class="readcheck"><div class="rchead"><b>${esc(t.platform)} ${kind === 'terms' ? 'search terms report' : 'campaign report'}</b><span>${rows}</span></div>${rec}<div class="cols">${chips}</div>${missing ? `<details><summary>Columns that would sharpen the read</summary><ul>${missing}</ul></details>` : ''}</div>`;
   };
 
-  const campaignTable = C => {
-    const rows = C.list.slice().sort((a, b) => b.cost - a.cost).slice(0, 30);
-    const eff = x => C.useValue ? (isFinite(x.roas) ? x.roas.toFixed(2) + 'x' : '-') : (isFinite(x.cpa) ? gbp2(x.cpa) : '-');
-    const vs = x => x.brand || x.conv < 0.5 ? '-' : (Math.round((x.idx - 1) * 100) >= 0 ? '+' : '') + Math.round((x.idx - 1) * 100) + '%';
-    return `<div class="xterms"><h3>Campaign by campaign</h3><p class="xhelp">Non-brand campaigns are compared with the non-brand average (${C.useValue ? 'return on ad spend ' + (isFinite(C.baseRoas) ? C.baseRoas.toFixed(2) + 'x' : '-') : 'cost per conversion ' + (isFinite(C.baseCpa) ? gbp2(C.baseCpa) : '-')}), so brand doesn't set an impossible bar.</p>
-      <div class="tablewrap"><table class="ctable"><thead><tr><th>Campaign</th><th>Spend</th><th>Conv.</th><th>${C.useValue ? 'ROAS' : 'Cost / conv.'}</th><th>vs avg</th>${C.hasLost ? '<th>Lost to budget</th>' : ''}${C.hasRank ? '<th>Lost to rank</th>' : ''}<th>Verdict</th></tr></thead><tbody>
-      ${rows.map(x => `<tr><td>${esc(x.name)}${x.type ? `<small>${esc(x.type)}${x.bid ? ' · ' + esc(x.bid) : ''}</small>` : ''}</td><td>${gbp(x.cost)}</td><td>${int(x.conv)}${x.low && x.conv >= 0.5 && !x.brand ? '<small>low data</small>' : ''}</td><td>${eff(x)}</td><td>${vs(x)}</td>${C.hasLost ? `<td>${isNaN(x.lost) ? '-' : Math.round(x.lost) + '%'}</td>` : ''}${C.hasRank ? `<td>${isNaN(x.rank) ? '-' : Math.round(x.rank) + '%'}</td>` : ''}<td><span class="verdict ${x.verdict[0]}">${esc(x.verdict[1])}</span></td></tr>`).join('')}
-      </tbody></table></div></div>`;
+  const classTable = C => {
+    const rows = C.list.slice().sort((a, b) => b.cost - a.cost).slice(0, 40);
+    const confLabel = { high: 'High', medium: 'Medium', low: 'Low', 'n/a': '-' };
+    return `<div class="tablewrap"><table class="ctable"><thead><tr><th>Campaign</th><th>Channel</th><th>Likely purpose</th><th>Confidence</th><th>Spend</th></tr></thead><tbody>${rows.map(x => `<tr><td>${esc(x.name)}${x.mismatch ? '<small>name suggests ' + esc(x.nameChan) + '</small>' : ''}</td><td>${esc(x.channel)}${x.chanSource === 'name' ? '<small>from name</small>' : ''}</td><td>${esc(x.intent)}${x.brandWeak ? '<small>performs like non-brand</small>' : ''}</td><td><span class="conf ${x.conf.replace('/', '')}">${confLabel[x.conf]}</span></td><td>${gbp(x.cost)}</td></tr>`).join('')}</tbody></table></div>`;
   };
 
   const render = () => {
@@ -296,129 +578,57 @@
     state.msgs = [];
     if (!C && !T) { out.hidden = true; status.textContent = errs.join(' ') || 'Nothing readable in that file.'; return; }
     status.textContent = errs.join(' ');
-    const th = TH();
-    const signals = [], recs = [], summary = [], working = [], notWorking = [];
 
-    // what the X-ray read
-    let checks = '';
-    if (C) checks += readCheck(state.raw_c, C, 'campaigns');
-    if (T) checks += readCheck(state.raw_t, T, 'terms');
-    $('#xr-check').innerHTML = checks;
-
-    // headline tiles
     const tiles = [];
     if (C) {
       tiles.push(['Spend', gbp(C.cost)], ['Conversions', int(C.conv)]);
-      if (isFinite(C.roas)) tiles.push(['Return on ad spend', C.roas.toFixed(2) + 'x']);
-      else if (isFinite(C.cpa)) tiles.push(['Cost per conversion', gbp2(C.cpa)]);
+      tiles.push(C.useValue ? ['Return on ad spend', (C.value / C.cost).toFixed(2) + 'x'] : ['Cost per conversion', C.conv ? gbp2(C.cost / C.conv) : '-']);
       tiles.push(['Campaigns', int(C.n)]);
-      summary.push(`Spend ${gbp(C.cost)}, ${int(C.conv)} conversions` + (isFinite(C.roas) ? `, ROAS ${C.roas.toFixed(2)}x` : (isFinite(C.cpa) ? `, cost per conversion ${gbp2(C.cpa)}` : '')) + `, ${C.n} campaigns.`);
     } else {
-      tiles.push(['Search term spend', gbp(T.cost)], ['Conversions', int(T.conv)], ['Search terms', int(T.n)]);
-      if (T.conv) tiles.push(['Cost per conversion', gbp2(T.cost / T.conv)]);
-      summary.push(`Search term spend ${gbp(T.cost)}, ${int(T.conv)} conversions across ${int(T.n)} search terms.`);
+      tiles.push(['Search term spend', gbp(T.cost)], ['Conversions', int(T.conv)], ['Search terms', int(T.n)], ['Cost per conversion', T.conv ? gbp2(T.cost / T.conv) : '-']);
     }
     $('#xr-tiles').innerHTML = tiles.map(t => `<div class="xtile"><span>${esc(t[0])}</span><b>${esc(t[1])}</b></div>`).join('');
+    const period = (C && C.periodLabel) || (state.raw_t && state.raw_t.dateLine) || '';
+    $('#xr-period').textContent = period ? 'Reporting period: ' + period : 'Reporting period: not stated in the file';
 
-    if (C) {
-      const bConv = C.brand.reduce((a, x) => a + x.conv, 0), bCost = C.brand.reduce((a, x) => a + x.cost, 0);
-      if (C.brand.length) {
-        const s = C.conv ? bConv / C.conv : 0;
-        const lvl = s > th.brandSharePriority ? 'priority' : s > th.brandShareLook ? 'look' : 'good';
-        signals.push(sig("Brand campaigns' share of conversions", pct(s), s, lvl, `${pct(bCost / C.cost)} of spend goes to brand campaigns.`, 'brand'));
-        summary.push(`Brand campaigns: ${pct(s)} of conversions from ${pct(bCost / C.cost)} of spend.`);
-        if (s > th.brandShareLook) recs.push([lvl, 'Judge brand and non-brand separately', `Brand campaigns deliver ${pct(s)} of conversions from ${pct(bCost / C.cost)} of spend. Much of that demand would arrive anyway, so the account average flatters non-brand. Set separate targets and report them separately.`, 'brand']);
-      } else {
-        signals.push(sig('Brand campaigns', 'None found', 0, 'info', 'Enter your brand name above. Brand may also be mixed into other campaigns, including Performance Max.', 'brand'));
-      }
-      if (C.pmax.length) {
-        const s = C.pmax.reduce((a, x) => a + x.cost, 0) / C.cost;
-        signals.push(sig('Performance Max share of spend', pct(s), s, s > th.pmaxShareLook ? 'look' : 'info', `${C.pmax.length} Performance Max campaign${C.pmax.length > 1 ? 's' : ''}.`, 'pmax'));
-        summary.push(`Performance Max: ${pct(s)} of spend.`);
-        if (s > th.pmaxShareLook) recs.push(['look', 'Open up Performance Max', `It takes ${pct(s)} of spend. Check its channel performance and search terms reports, and whether brand exclusions are set, so you know what it adds rather than what it claims.`, 'pmax']);
-      }
-      if (C.hasLost) {
-        signals.push(sig('Efficient campaigns held back by budget', String(C.winners.length), C.winners.length / C.n, C.winners.length ? 'look' : 'good', C.winners.length ? C.winners.slice(0, 3).map(x => x.name).join(', ') : 'No efficient non-brand campaign is losing much impression share to budget.', 'budget'));
-        if (C.winners.length) {
-          summary.push(`Efficient but budget-capped: ${C.winners.map(x => x.name).join(', ')}.`);
-          recs.push(['priority', 'Feed the campaigns that are capped and efficient', `${C.winners.length} campaign${C.winners.length > 1 ? 's are' : ' is'} beating the non-brand average while losing impression share to budget: ${C.winners.slice(0, 3).map(x => x.name).join(', ')}. That's usually the cheapest growth in the account.`, 'budget']);
-        }
-      } else {
-        signals.push(sig('Budget headroom', 'Not in file', 0, 'info', 'Add the lost impression share (budget) column to see which campaigns are capped.', 'budget'));
-      }
-      if (C.hasRank && C.rankLosers.length) {
-        const s = C.rankLosers.reduce((a, x) => a + x.cost, 0) / C.cost;
-        signals.push(sig('Spend in campaigns losing heavily on rank', pct(s), s, 'look', C.rankLosers.slice(0, 3).map(x => `${x.name} (${Math.round(x.rank)}%)`).join(', '), 'rank'));
-        recs.push(['look', 'Find out why you lose on rank', `${C.rankLosers.length} campaign${C.rankLosers.length > 1 ? 's lose' : ' loses'} more than ${th.lostRankHigh}% of impression share to rank. More budget won't fix that: ad quality, landing pages and bids will.`, 'rank']);
-      }
-      const zc = C.zero.reduce((a, x) => a + x.cost, 0) / C.cost;
-      if (C.zero.length) {
-        signals.push(sig('Spend in campaigns with no conversions', pct(zc), zc, zc > th.zeroConvSpendPriority ? 'priority' : 'look', C.zero.slice(0, 3).map(x => x.name).join(', '), 'zero'));
-        summary.push(`Campaigns with no conversions: ${pct(zc)} of spend.`);
-        if (zc > th.zeroConvSpendLook) recs.push([zc > th.zeroConvSpendPriority ? 'priority' : 'look', 'Decide what the zero-conversion campaigns are for', `${pct(zc)} of spend (${gbp(zc * C.cost)}) sits in campaigns with no recorded conversions. If they have an upper-funnel job, give them a measure that proves it. If not, that budget can move to what's working.`, 'zero']);
-      }
-      if (C.lowCount) {
-        recs.push(['look', 'Read low-volume campaigns with caution', `${C.lowCount} non-brand campaign${C.lowCount > 1 ? 's have' : ' has'} fewer than ${th.lowDataConversions} conversions in this period. Automated bidding has little to learn from, so consider consolidating or bidding to a higher-volume conversion that still predicts value.`, 'lowdata']);
-      }
-      if (C.hasBid && C.manual.length) {
-        const s = C.manual.reduce((a, x) => a + x.cost, 0) / C.cost;
-        if (s > th.manualShareLook) recs.push(['look', 'Test Smart Bidding where manual bidding has enough data', `${pct(s)} of spend is on manual bidding in campaigns with enough conversions to support a controlled Smart Bidding test.`, 'manual']);
-      }
-      C.nb.filter(x => x.verdict[0] === 'good' || x.verdict[0] === 'great').sort((a, b) => b.idx - a.idx).slice(0, 4).forEach(x => working.push(`${x.name}: ${C.useValue ? x.roas.toFixed(2) + 'x return' : gbp2(x.cpa) + ' per conversion'}, ${Math.round((x.idx - 1) * 100)}% better than the non-brand average${x.low ? ' (low data)' : ''}.`));
-      C.list.filter(x => x.verdict[0] === 'bad').sort((a, b) => b.cost - a.cost).slice(0, 4).forEach(x => notWorking.push(x.conv < 0.5 ? `${x.name}: ${gbp(x.cost)} spent with no conversions.` : `${x.name}: ${C.useValue ? x.roas.toFixed(2) + 'x return' : gbp2(x.cpa) + ' per conversion'}, ${Math.round((1 - x.idx) * 100)}% worse than the non-brand average.`));
-      const topShare = C.top.cost / C.cost;
-      signals.push(sig('Biggest single campaign', pct(topShare), topShare, topShare > 0.5 ? 'look' : 'info', C.top.name));
-    }
+    const picks = select(candidates(C, T));
+    state.picks = picks;
+    const obs = picks.length ? picks.map(p => `<article class="obs"><h3>${esc(p.head)}</h3>${p.metrics && p.metrics.length ? `<div class="obsm">${p.metrics.map(m => `<span>${esc(m)}</span>`).join('')}</div>` : ''}<p>${esc(p.text)}</p>${p.note ? `<p class="obsnote">${esc(p.note)}</p>` : ''}</article>`).join('')
+      : `<article class="obs"><h3>Nothing dramatic stands out</h3><p>On the numbers in this file, the account looks fairly balanced. That's useful to know, and it usually means the more interesting questions sit beneath the campaign level: search terms, bidding and how results are measured.</p></article>`;
+    $('#xr-obs').innerHTML = obs;
 
-    if (T) {
-      const zs = T.cost ? T.zeroCost / T.cost : 0;
-      signals.push(sig('Spend on searches that never converted', pct(zs), zs, zs > th.termWastePriority ? 'priority' : zs > th.termWasteLook ? 'look' : 'good', `${gbp(T.zeroCost)} across ${int(T.list.filter(x => x.conv < 0.5).length)} search terms.`, 'terms'));
-      summary.push(`Search terms with no conversions: ${pct(zs)} of search term spend (${gbp(T.zeroCost)}).`);
-      if (zs > th.termWasteLook) recs.push([zs > th.termWastePriority ? 'priority' : 'look', 'Tidy the search terms', `${pct(zs)} of search term spend (${gbp(T.zeroCost)}) went on searches that didn't convert. The costliest are listed below, with words that only ever appear in non-converting searches: strong negative keyword candidates.`, 'terms']);
-      if (T.hiddenCost) signals.push(sig('Spend on searches Google doesn\'t show', pct(T.hiddenCost / T.cost), T.hiddenCost / T.cost, 'info', '"Other search terms": below Google\'s privacy threshold.'));
-      if (brandWords().length) {
-        const s = T.conv ? T.brandConv / T.conv : 0;
-        signals.push(sig("Brand searches' share of conversions", pct(s), s, s > th.brandSharePriority ? 'look' : 'info', `${pct(T.brandCost / T.cost)} of search term spend is on brand searches.`, 'brand'));
-      }
-      const ls = T.cost ? T.longCost / T.cost : 0;
-      signals.push(sig('Spend on long, conversational searches', pct(ls), ls, 'info', 'Searches of five words or more, the style AI Mode encourages.', 'aimode'));
-      if (T.hasMatch) {
-        const os = T.cost ? T.openCost / T.cost : 0;
-        signals.push(sig('Spend open to AI Mode contextual matching', pct(os), os, os > th.openMatchLook ? 'look' : 'info', 'Broad match, AI Max and Performance Max can match to AI Mode conversations, not just the query.', 'aimode'));
-        summary.push(`Spend via broad match, AI Max or Performance Max: ${pct(os)}.`);
-        if (os > th.openMatchLook) recs.push(['look', 'Get ready for ads in AI Mode', `About ${pct(os)} of search term spend runs through matching Google says is eligible for contextual matching in AI Mode. Write down a baseline now so you can see what changes when UK ads arrive.`, 'aimode']);
-      }
-      T.best.slice(0, 3).forEach(x => working.push(`Search "${x.term}": ${int(x.conv)} conversions at ${gbp2(x.cost / x.conv)} each.`));
-      T.wasted.slice(0, 3).forEach(x => notWorking.push(`Search "${x.term}": ${gbp2(x.cost)} with no conversions.`));
-    }
-    if (!recs.length) recs.push(['good', 'Nothing alarming in this file', 'The headline signals look reasonable. The bigger questions are usually outside the file: margins, lead quality and attribution.', '']);
-    const order = { priority: 0, look: 1, good: 2, info: 3 };
-    recs.sort((a, b) => order[a[0]] - order[b[0]]);
-
-    $('#xr-ww').innerHTML = `<div class="ww good"><h3>What's working</h3>${working.length ? `<ul>${working.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : '<p class="xhelp">Nothing clearly beats the average in this file yet.</p>'}</div><div class="ww bad"><h3>What isn't</h3>${notWorking.length ? `<ul>${notWorking.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : '<p class="xhelp">Nothing clearly underperforms in this file.</p>'}</div>`;
-    $('#xr-signals').innerHTML = signals.join('');
-    $('#xr-recs').innerHTML = recs.slice(0, 8).map(r => `<li class="${r[0]}"><b>${esc(r[1])}</b><span>${esc(r[2])}</span>${r[3] ? ruleLink(r[3]) : ''}</li>`).join('');
-
-    let detail = C ? campaignTable(C) : '';
-    if (T && (T.wasted.length || T.best.length)) {
-      detail += '<div class="xterms"><div class="two" style="gap:28px">';
-      detail += `<div><h3>Costliest searches with no conversions</h3><div class="tablewrap"><table><thead><tr><th>Search term</th><th>Clicks</th><th>Cost</th></tr></thead><tbody>${T.wasted.map(w => `<tr><td>${esc(w.term)}</td><td>${int(w.clicks)}</td><td>${gbp2(w.cost)}</td></tr>`).join('') || '<tr><td colspan="3">None</td></tr>'}</tbody></table></div></div>`;
-      detail += `<div><h3>Best converting non-brand searches</h3><div class="tablewrap"><table><thead><tr><th>Search term</th><th>Conv.</th><th>Cost / conv.</th></tr></thead><tbody>${T.best.map(w => `<tr><td>${esc(w.term)}</td><td>${int(w.conv)}</td><td>${gbp2(w.cost / w.conv)}</td></tr>`).join('') || '<tr><td colspan="3">None</td></tr>'}</tbody></table></div></div>`;
-      detail += '</div>';
-      if (T.negWords.length) detail += `<h3 style="margin-top:26px">Words that only appear in non-converting searches</h3><div class="negs xnegs">${T.negWords.map(w => `<span>${esc(w[0])} <small>${gbp(w[1])}</small></span>`).join('')}</div><p class="xhelp">Check each one before adding it as a negative keyword: a word can be wasteful in one campaign and valuable in another. Google adds negatives from the search terms report as exact match by default.</p>`;
-      detail += '</div>';
-    }
-    $('#xr-terms').innerHTML = detail;
+    let how = '';
+    if (C) how += readCheck(state.raw_c, C, 'campaigns');
+    if (T) how += readCheck(state.raw_t, T, 'terms');
+    if (C) how += `<h3 style="margin-top:22px">How each campaign was classified</h3><p class="xhelp">Channel comes from the campaign type column when it's there. Purpose is inferred from names and results, so treat it as a best guess.</p>` + classTable(C);
+    $('#xr-how').innerHTML = how;
 
     $('#xr-label').textContent = state.sample ? 'Sample data' : (state.names.join(' + ') || 'Your account');
-    const text = ['Second Query Account X-ray' + (state.sample ? ' (sample data)' : ''), ...summary, '', "What's working:", ...working.map(w => '- ' + w), '', "What isn't:", ...notWorking.map(w => '- ' + w), '', 'Where to look first:', ...recs.slice(0, 8).map((r, i) => `${i + 1}. ${r[1]}: ${r[2]}`)].join('\n');
+    const text = ['Second Query Account X-ray' + (state.sample ? ' (sample data)' : ''), period ? 'Period: ' + period : '', tiles.map(t => `${t[0]}: ${t[1]}`).join(' | '), '', 'What caught our attention:', ...picks.map((p, i) => `${i + 1}. ${p.head} (${(p.metrics || []).join('; ')}). ${p.text}`)].filter(x => x !== null).join('\n');
     state.summary = text;
-    $('#xr-talk').href = 'mailto:sam@secondquery.com?subject=' + encodeURIComponent('Account X-ray results') + '&body=' + encodeURIComponent(text + '\n\nWhat I would like to talk through:\n');
+    $('#xr-talk').href = 'mailto:sam@secondquery.com?subject=' + encodeURIComponent('Account X-ray results') + '&body=' + encodeURIComponent(text + '\n\nWhat I would like to understand better:\n');
+    state.aiPayload = buildAiPayload(C, T, period, picks);
+    document.dispatchEvent(new CustomEvent('xray:ready'));
     out.hidden = false;
     reset.hidden = false;
     if (!state.fromBrand) out.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
     state.fromBrand = false;
   };
+
+  /* a compact, aggregated summary for the optional AI read (never the raw file) */
+  const buildAiPayload = (C, T, period, picks) => ({
+    period,
+    platform: state.names.join(' + '),
+    currency: 'GBP',
+    totals: C ? { spend: Math.round(C.cost), conversions: Math.round(C.conv), conversionValue: Math.round(C.value), campaigns: C.n } : { spend: Math.round(T.cost), conversions: Math.round(T.conv), searchTerms: T.n },
+    campaigns: C ? C.list.slice().sort((a, b) => b.cost - a.cost).slice(0, 40).map(x => ({
+      name: x.name, channel: x.channel, likelyPurpose: x.intent, confidence: x.conf, spend: Math.round(x.cost), conversions: Math.round(x.conv * 10) / 10,
+      conversionValue: Math.round(x.value), lostISBudget: isFinite(x.lost) ? Math.round(x.lost) : null, lostISRank: isFinite(x.rank) ? Math.round(x.rank) : null, isApprox: x.isApprox
+    })) : [],
+    trend: C && C.dates.length >= 14 ? { days: C.dates.length } : null,
+    searchTerms: T ? { spend: Math.round(T.cost), zeroConversionSpendShare: Math.round(T.zeroCost / T.cost * 100), longQueryShare: Math.round(T.longCost / T.cost * 100), questionShare: Math.round(T.qCost / T.cost * 100) } : null,
+    ruleBasedObservations: picks.map(p => p.head)
+  });
 
   const ingest = (text, name) => {
     const t = readTable(text);
@@ -428,7 +638,7 @@
     }
     const missingReq = WANT[t.kind].required.filter(k => t.cols[k] < 0);
     if (missingReq.includes('cost')) { state.msgs.push(`${name}: there's no Cost or Spend column. Add it and download again.`); return false; }
-    if (missingReq.includes('conv')) state.msgs.push(`${name}: there's no Conversions column, so results will be limited. Add it and download again.`);
+    if (missingReq.includes('conv')) state.msgs.push(`${name}: there's no Conversions column, so the read will be limited. Add it and download again.`);
     if (t.kind === 'campaigns') { state.raw_c = t; state.campaigns = analyseCampaigns(t); }
     else { state.raw_t = t; state.terms = analyseTerms(t); }
     state.names.push(`${t.platform} ${t.kind === 'terms' ? 'search terms' : 'campaigns'}`);
@@ -464,12 +674,15 @@
   reset.addEventListener('click', () => {
     Object.assign(state, { campaigns: null, terms: null, raw_c: null, raw_t: null, sample: false, names: [], msgs: [] });
     out.hidden = true; reset.hidden = true; status.textContent = ''; fileIn.value = '';
+    document.dispatchEvent(new CustomEvent('xray:reset'));
   });
 
   $('#xr-copy').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(state.summary || ''); status.textContent = 'Summary copied.'; }
     catch (e) { status.textContent = 'Copy is blocked in this browser.'; }
   });
+
+  window.SQXray = { get payload() { return state.aiPayload; }, get summary() { return state.summary; } };
 
   /* ---------- sample data (a made-up homeware retailer, Google Ads format) ---------- */
   const SAMPLE_CAMPAIGNS = `Campaign performance report
@@ -521,5 +734,31 @@ Total: Search terms,,,,,"112,401","3,074,790","91,511.70","2,643.00","504,180.00
     ingest(SAMPLE_TERMS, 'sample');
     state.sample = true;
     render();
+  });
+})();
+
+/* Optional AI read: only shown once an endpoint is configured in /static/ai-config.json */
+(() => {
+  const box = document.getElementById('xr-ai');
+  if (!box) return;
+  const ok = document.getElementById('xr-ai-ok'), go = document.getElementById('xr-ai-go'), st = document.getElementById('xr-ai-status'), out = document.getElementById('xr-ai-out');
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  let endpoint = '';
+  const ready = fetch('/static/ai-config.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : {}).then(j => { endpoint = (j && j.endpoint) || ''; }).catch(() => {});
+  document.addEventListener('xray:ready', () => ready.then(() => { box.hidden = !endpoint; out.innerHTML = ''; st.textContent = ''; }));
+  document.addEventListener('xray:reset', () => { box.hidden = true; out.innerHTML = ''; ok.checked = false; go.disabled = true; });
+  ok.addEventListener('change', () => { go.disabled = !ok.checked; });
+  go.addEventListener('click', async () => {
+    if (!ok.checked || !window.SQXray || !window.SQXray.payload) return;
+    go.disabled = true; st.textContent = 'Asking Claude… this usually takes 10 to 20 seconds.'; out.innerHTML = '';
+    try {
+      const r = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ payload: window.SQXray.payload }) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Something went wrong');
+      out.innerHTML = (j.observations || []).map(o => `<article class="obs"><h3>${esc(o.heading)}</h3>${o.metrics && o.metrics.length ? `<div class="obsm">${o.metrics.map(m => `<span>${esc(m)}</span>`).join('')}</div>` : ''}<p>${esc(o.text)}</p></article>`).join('') + (j.closing ? `<p class="xhelp" style="margin-top:12px">${esc(j.closing)}</p>` : '') + '<p class="obsnote" style="margin-top:8px">Written by Claude from the summary above. AI can get things wrong, so treat this as a starting point.</p>';
+      st.textContent = '';
+    } catch (e) {
+      st.textContent = e.message || 'Something went wrong. Please try again later.';
+    } finally { go.disabled = !ok.checked; }
   });
 })();
