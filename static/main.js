@@ -106,7 +106,15 @@
     form.addEventListener('change', update);
     update();
 
+    const optSel = form.elements.option;
+    const want = new URLSearchParams(location.search).get('option');
+    if (optSel && want && [...optSel.options].some(o => o.value === want)) {
+      optSel.value = want;
+      const picked = document.getElementById('picked');
+      if (picked) { picked.hidden = false; picked.querySelector('b').textContent = optSel.options[optSel.selectedIndex].text; }
+    }
     const briefText = () => [
+      `Option: ${optSel && optSel.value ? optSel.options[optSel.selectedIndex].text : 'Not sure yet'}`,
       `Name: ${val('name')}`,
       `Role: ${val('role')}`,
       `Company: ${val('company')}`,
@@ -173,9 +181,10 @@
       { k: ['cpa', 'cost per', 'cpl', 'expensive', 'rising', 'creep', 'roas', 'return on', 'dropped', 'drop', 'worse', 'declin', 'falling'], s: 'Rising costs rarely have one cause. Tracking, targets, auction pressure and query drift usually arrive together. A Review isolates the one doing the damage.', p: 'decision-review', h: '/services/#review' },
       { k: ['tracking', 'conversion', 'measure', 'attribution', 'ga4', 'analytics', 'offline', 'crm'], s: "If bidding is optimising towards the wrong thing, nothing else matters. It's the first thing every Review checks.", p: 'how-i-work', h: '/approach/' },
       { k: ['learning', 'smart bidding', 'tcpa', 'troas', 'target', 'bid strategy', 'bidding'], s: "The Learning label clears within seven days. The learning doesn't. Work out how long to wait before judging a change.", p: 'learning-clock', h: '/tools/#learning-clock' },
+      { k: ['small business', 'small budget', 'myself', 'diy', 'freelancer', 'sole trader', 'small account'], s: 'Smaller accounts are welcome. Most start with the free Account X-ray or a £295 consultation and a one-page plan.', p: 'small-business', h: '/services/#small-business' },
       { k: ['microsoft', 'bing'], s: 'Microsoft Advertising is part of every Review wherever it carries meaningful spend or opportunity.', p: 'services', h: '/services/' },
       { k: ['audit', 'health', 'check', 'waste', 'wasted', 'negative', 'search term'], s: 'Start with the free Account X-ray: drop in a report and see where the waste is, without uploading anything.', p: 'account-x-ray', h: '/tools/' },
-      { k: ['price', 'how much', 'fee', 'pricing', 'cost of', 'charge'], s: 'Fixed prices, agreed up front: £295 for a consultation, £1,750 for a Decision Review and £1,500 a month for advisory.', p: 'services', h: '/services/' }
+      { k: ['price', 'how much', 'fee', 'pricing', 'cost of', 'charge'], s: 'Fixed prices, agreed up front: £295 for a consultation, £795 for a Focused Review, £1,750 for a Decision Review and £1,500 a month for advisory.', p: 'services', h: '/services/#quiz' }
     ];
     const fallback = { s: "Not every question fits a box. Send it as a brief and you'll get a straight answer within two working days.", p: 'start-a-brief', h: '/contact/' };
     let current = fallback;
@@ -395,5 +404,74 @@
       });
       card.addEventListener('pointerleave', () => { card.style.transform = ''; });
     });
+  }
+}
+
+/* ---------- which option fits you? (services quiz) ---------- */
+{
+  const quiz = document.getElementById('quiz');
+  if (quiz) {
+    const steps = [...quiz.querySelectorAll('.qstep')];
+    const result = quiz.querySelector('.qresult');
+    const prev = quiz.querySelector('.qprev');
+    const bar = quiz.querySelector('.qprog i');
+    const answers = {};
+    let at = 0;
+    const OPT = {
+      consultation: { name: 'Strategy consultation', price: '£295', slug: 'consultation', gets: ['One hour on your question, by video call', 'A one-page summary of priorities within two working days', 'The fee comes off a bigger review within 30 days'] },
+      focused: { name: 'Focused Review', price: '£795', slug: 'focused-review', gets: ['A proper look at one area: measurement, bidding, search terms or Performance Max', 'Written findings with prioritised fixes in five working days', 'A 45-minute walkthrough and a week of follow-up questions'] },
+      review: { name: 'Decision Review', price: '£1,750', slug: 'decision-review', gets: ['An independent review of the whole account against your decision', 'A written recommendation, the risks and a 90-day plan in ten working days', 'A 90-minute readout and two weeks of follow-up'] },
+      advisory: { name: 'Decision Review, then Strategic advisory', price: '£1,750 then £1,500 a month', slug: 'advisory', gets: ['A Decision Review to set the baseline', 'Then a monthly memo, strategy call and quarterly test plan', 'Rolling monthly, with no long contract'] }
+    };
+    const spendText = { s1: 'under £5,000 a month', s2: '£5,000 to £25,000 a month', s3: '£25,000 to £100,000 a month', s4: 'over £100,000 a month' };
+    const pick = a => {
+      const big = a.spend === 's3' || a.spend === 's4';
+      if (a.who === 'none') return ['consultation', 'focused', "You're about to start, so the most useful thing is a plan before you spend: structure, tracking and a sensible first budget."];
+      if (a.need === 'quick') return ['consultation', big ? 'review' : 'focused', 'You need a straight answer to one question, and an hour with a one-page plan is the quickest way to get it.'];
+      if (a.need === 'area') {
+        if (a.spend === 's1') return ['consultation', 'focused', `At ${spendText.s1}, an hour on the part that worries you usually covers it. If you want it gone through properly, the Focused Review is the step up.`];
+        return ['focused', big ? 'review' : 'consultation', 'You want one part of the account looked at properly, with fixes written down. That is exactly what the Focused Review is for.'];
+      }
+      if (a.need === 'full') {
+        if (a.spend === 's1') return ['focused', 'consultation', `At ${spendText.s1}, a lighter whole-account Focused Review gives you the full picture without a bigger fee.`];
+        return ['review', 'focused', `A decision with real money attached deserves the whole account looked at against it. At ${spendText[a.spend]}, the Decision Review usually pays for itself.`];
+      }
+      if (a.need === 'ongoing') {
+        if (!big) return ['focused', 'consultation', `At ${spendText[a.spend]}, monthly advisory is hard to justify. A Focused Review now, then a consultation each quarter, gives you senior input at the right moments.`];
+        return ['advisory', 'review', 'Ongoing senior oversight works best on a shared baseline, so it starts with a Decision Review and then runs month to month.'];
+      }
+      return ['consultation', 'focused', ''];
+    };
+    const timing = { week: 'Consultations can usually happen within a few working days. Say your deadline in the brief.', month: 'That timing works well. Say your deadline in the brief so the work is scheduled around it.', quarter: 'Plenty of time to plan this properly.', explore: 'No pressure: the brief just starts a conversation.' };
+    const show = i => {
+      at = i;
+      steps.forEach((s, k) => { s.hidden = k !== i; });
+      result.hidden = i < steps.length;
+      prev.hidden = i === 0 || i >= steps.length;
+      bar.style.width = Math.min(100, (i / steps.length) * 100) + '%';
+      if (i < steps.length) {
+        steps[i].querySelectorAll('button').forEach(b => b.classList.toggle('chosen', answers[steps[i].dataset.q] === b.dataset.v));
+      }
+    };
+    const finish = () => {
+      const [main, alt, why] = pick(answers);
+      const o = OPT[main], a = OPT[alt];
+      result.querySelector('.qname').textContent = o.name;
+      result.querySelector('.qprice').textContent = o.price;
+      result.querySelector('.qwhy').textContent = why + ' ' + (timing[answers.when] || '');
+      result.querySelector('.qgets').innerHTML = o.gets.map(g => `<li>${g}</li>`).join('');
+      const cta = result.querySelector('.qcta');
+      cta.href = '/contact/?option=' + o.slug;
+      cta.textContent = 'Start a brief for this';
+      result.querySelector('.qalt').innerHTML = a ? `Also worth a look: <a href="/contact/?option=${a.slug}">${a.name} (${a.price})</a>` : '';
+      show(steps.length);
+    };
+    steps.forEach((s, i) => s.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      answers[s.dataset.q] = b.dataset.v;
+      if (i + 1 < steps.length) show(i + 1); else finish();
+    })));
+    prev.addEventListener('click', () => show(Math.max(0, at - 1)));
+    quiz.querySelector('.qback').addEventListener('click', () => show(0));
+    show(0);
   }
 }

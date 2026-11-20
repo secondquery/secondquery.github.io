@@ -1,0 +1,100 @@
+{
+  "reviewed": "2026-11-20",
+  "reviewedLabel": "20 November 2026",
+  "nextReview": "2026-12-01",
+  "thresholds": {
+    "brandShareLook": 0.2,
+    "brandSharePriority": 0.4,
+    "pmaxShareLook": 0.4,
+    "lostBudgetCap": 10,
+    "lostRankHigh": 30,
+    "zeroConvSpendLook": 0.03,
+    "zeroConvSpendPriority": 0.1,
+    "termWasteLook": 0.12,
+    "termWastePriority": 0.25,
+    "openMatchLook": 0.5,
+    "lowDataConversions": 15,
+    "workingIndex": 1.1,
+    "weakIndex": 0.7,
+    "manualShareLook": 0.2
+  },
+  "rules": [
+    {
+      "id": "brand",
+      "title": "Judge brand and non-brand separately",
+      "how": "Campaigns named as brand, or containing the brand names you enter, are separated out. Non-brand campaigns are judged against the non-brand average, not the account average.",
+      "sources": [
+        { "title": "Google Ads Help: Apply brand exclusions to Performance Max or Search campaigns", "url": "https://support.google.com/google-ads/answer/14505308" },
+        { "title": "Google Ads Help: Answering your top questions about Performance Max", "url": "https://support.google.com/google-ads/answer/14587068" }
+      ]
+    },
+    {
+      "id": "budget",
+      "title": "Feed efficient campaigns that are losing impressions to budget",
+      "how": "A non-brand campaign beating the non-brand average while losing more than 10% of impression share to budget is flagged as held back.",
+      "sources": [
+        { "title": "Google Ads Help: Get impression share data (Search lost IS (budget))", "url": "https://support.google.com/google-ads/answer/7103314" },
+        { "title": "Microsoft Advertising Help: Share of voice and impression share columns", "url": "https://help.ads.microsoft.com/apex/index/3/en/56677" }
+      ]
+    },
+    {
+      "id": "rank",
+      "title": "Losing impressions to rank means ad quality or bids",
+      "how": "Campaigns losing more than 30% of impression share to rank are flagged. Google's guidance is to improve ad quality and bids.",
+      "sources": [
+        { "title": "Google Ads Help: Search campaign performance fluctuations: lost impression share", "url": "https://support.google.com/google-ads/answer/12265831" }
+      ]
+    },
+    {
+      "id": "zero",
+      "title": "Question spend with no recorded conversions",
+      "how": "Campaigns with spend and no conversions in the period are flagged. If they have an upper-funnel job, they need a measure that proves it.",
+      "sources": [
+        { "title": "Google Ads Help: Tips on measuring Smart Bidding performance", "url": "https://support.google.com/google-ads/answer/6268633" }
+      ]
+    },
+    {
+      "id": "lowdata",
+      "title": "Low conversion volume limits what automation can learn",
+      "how": "Campaigns with fewer than 15 conversions in the period are marked as low data, so their results are read with caution.",
+      "sources": [
+        { "title": "Google Ads Help: About Smart Bidding learning", "url": "https://support.google.com/google-ads/answer/13020501" },
+        { "title": "Google Ads Help: bid strategy conversion requirements", "url": "https://support.google.com/google-ads/answer/10285843" }
+      ]
+    },
+    {
+      "id": "pmax",
+      "title": "Open up Performance Max with its channel and search term reports",
+      "how": "When Performance Max takes more than 40% of spend, the X-ray suggests checking where it serves and what it matches to.",
+      "sources": [
+        { "title": "Google Ads Help: About the channel performance report for Performance Max", "url": "https://support.google.com/google-ads/answer/16260130" },
+        { "title": "Google Ads Help: About the search terms report in Performance Max", "url": "https://support.google.com/google-ads/answer/16327396" }
+      ]
+    },
+    {
+      "id": "terms",
+      "title": "Use the search terms report to find negative keywords",
+      "how": "Search terms that spent money without converting are listed, along with words that only ever appear in non-converting searches.",
+      "sources": [
+        { "title": "Google Ads Help: Get negative keyword ideas using the search terms report", "url": "https://support.google.com/google-ads/answer/7102466" },
+        { "title": "Microsoft Advertising Help: About search terms", "url": "https://help.ads.microsoft.com/apex/index/3/en/50857" }
+      ]
+    },
+    {
+      "id": "aimode",
+      "title": "Know your exposure to AI Mode",
+      "how": "Spend through broad match, AI Max and Performance Max is eligible for contextual matching in AI Overviews and AI Mode. Exact and phrase match only serve there on directly commercial queries.",
+      "sources": [
+        { "title": "Google Ads Help: About ads in AI Overviews and AI Mode", "url": "https://support.google.com/google-ads/answer/18826097" }
+      ]
+    },
+    {
+      "id": "manual",
+      "title": "Manual bidding with enough data is worth testing against Smart Bidding",
+      "how": "If the file includes bid strategy and a meaningful share of spend is on manual CPC in campaigns with enough conversions, the X-ray suggests a controlled test.",
+      "sources": [
+        { "title": "Google Ads Help: Tips on measuring Smart Bidding performance", "url": "https://support.google.com/google-ads/answer/6268633" }
+      ]
+    }
+  ]
+}

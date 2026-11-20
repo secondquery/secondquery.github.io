@@ -7,12 +7,22 @@ nav: contact
 <section class="wrap pagehead">
   {{query:how do we get started}}
   <h1>Start a brief</h1>
-  <p class="lede">Tell me what you're deciding. Like a good ad, a good brief gets a better result, so there's a meter to tell you how yours is doing. You'll get a reply within two working days.</p>
+  <p class="lede">Not sure which option fits? <a href="/services/#quiz">Take the 30-second quiz</a> first. Otherwise, tell me what you're deciding. Like a good ad, a good brief gets a better result, so there's a meter to tell you how yours is doing. You'll get a reply within two working days.</p>
 </section>
 
 <section class="wrap" style="padding-bottom:clamp(48px,7vw,96px)">
   <div class="brief">
     <form class="brieform" id="brief" novalidate>
+      <p class="picked" id="picked" hidden>You picked <b></b>. Change it below if you're not sure.</p>
+      <div class="field"><label for="f-option">Which option are you interested in?</label>
+        <select id="f-option" name="option">
+          <option value="">Not sure yet</option>
+          <option value="consultation">Strategy consultation (£295)</option>
+          <option value="focused-review">Focused Review (£795)</option>
+          <option value="decision-review">Decision Review (£1,750)</option>
+          <option value="advisory">Strategic advisory (£1,500 a month)</option>
+        </select>
+      </div>
       <div class="two" style="gap:0 18px">
         <div class="field"><label for="f-name">Your name</label><input id="f-name" name="name" autocomplete="name" required></div>
         <div class="field"><label for="f-email">Work email</label><input id="f-email" name="email" type="email" autocomplete="email" required></div>
@@ -34,7 +44,8 @@ nav: contact
         <div class="field"><label for="f-spend">Monthly Google Ads spend</label>
           <select id="f-spend" name="spend">
             <option value="">Choose a range</option>
-            <option>Under £10,000</option>
+            <option>Under £5,000</option>
+            <option>£5,000 to £10,000</option>
             <option>£10,000 to £25,000</option>
             <option>£25,000 to £50,000</option>
             <option>£50,000 to £100,000</option>

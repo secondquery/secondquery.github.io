@@ -16,19 +16,57 @@ nav: tools
       <div class="xstep">
         <span class="xn">1</span>
         <div>
-          <h3>Export a report</h3>
+          <h3>Export two reports</h3>
+          <p>The X-ray reads two standard reports. Use the <b>last 90 days</b> if you can (30 at the very least), so there's enough data for the results to mean something, and leave segments off so each campaign or search term is one row.</p>
           <div class="xtabs" role="tablist" aria-label="Choose your platform">
             <button type="button" role="tab" aria-selected="true" data-tab="g">Google Ads</button>
             <button type="button" role="tab" aria-selected="false" data-tab="m">Microsoft Advertising</button>
           </div>
           <div class="xtab" data-pane="g">
-            <p><b>Campaign report:</b> open the Campaigns table, pick the last 30 or 90 days, make sure Cost, Conversions and Conv. value are showing (add Search lost IS (budget) if you can), then download it as a CSV.</p>
-            <p><b>Search terms report:</b> open the Search terms report for the same dates and download it as a CSV.</p>
+            <details class="howto" open>
+              <summary><b>Report 1: Campaigns</b><span>about 2 minutes</span></summary>
+              <ol>
+                <li>In Google Ads, go to <b>Campaigns</b>. If you can't see it, type "Campaigns" into the search bar at the top.</li>
+                <li>Set the date range (top right) to the last 90 days.</li>
+                <li>Show campaigns that spent in that period, including paused ones. Leave removed campaigns out.</li>
+                <li>Click the <b>Columns</b> icon and make sure these are ticked. The impression share columns sit under <b>Competitive metrics</b>.</li>
+              </ol>
+              <div class="colspec"><span class="req">Campaign</span><span class="req">Cost</span><span class="req">Conversions</span><span>Conv. value</span><span>Campaign type</span><span>Bid strategy type</span><span>Clicks</span><span>Search lost IS (budget)</span><span>Search lost IS (rank)</span></div>
+              <ol start="5"><li>Click <b>Download</b> (the down-arrow icon above the table) and choose <b>.csv</b>.</li></ol>
+            </details>
+            <details class="howto">
+              <summary><b>Report 2: Search terms</b><span>about 2 minutes</span></summary>
+              <ol>
+                <li>Go to <b>Insights and reports</b>, then <b>Search terms</b> (or type "Search terms" into the search bar at the top).</li>
+                <li>Use the same 90-day date range, with all campaigns selected.</li>
+                <li>Check these columns are showing:</li>
+              </ol>
+              <div class="colspec"><span class="req">Search term</span><span class="req">Cost</span><span class="req">Conversions</span><span>Match type</span><span>Conv. value</span><span>Clicks</span><span>Campaign</span></div>
+              <ol start="4"><li>Click <b>Download</b> and choose <b>.csv</b>. Performance Max search terms appear in this report too.</li></ol>
+            </details>
           </div>
           <div class="xtab" data-pane="m" hidden>
-            <p><b>Campaign report:</b> on the Campaigns tab, pick your date range, show Spend, Conversions and Revenue (add Lost impression share (budget) if you can), then download as CSV.</p>
-            <p><b>Search terms report:</b> from Reports, run a Search term report for the same dates and download as CSV.</p>
+            <details class="howto" open>
+              <summary><b>Report 1: Campaigns</b><span>about 2 minutes</span></summary>
+              <ol>
+                <li>In Microsoft Advertising, open the <b>Campaigns</b> page.</li>
+                <li>Set the date range to the last 90 days.</li>
+                <li>Click <b>Columns</b>, then <b>Modify columns</b>, and add these. Impression share columns are under <b>Competitive metrics</b>.</li>
+              </ol>
+              <div class="colspec"><span class="req">Campaign name</span><span class="req">Spend</span><span class="req">Conversions</span><span>Revenue</span><span>Campaign type</span><span>Bid strategy type</span><span>Clicks</span><span>Impr. share lost to budget (%)</span><span>Impr. share lost to rank (%)</span></div>
+              <ol start="4"><li>Click <b>Download</b> and choose <b>CSV</b>.</li></ol>
+            </details>
+            <details class="howto">
+              <summary><b>Report 2: Search terms</b><span>about 3 minutes</span></summary>
+              <ol>
+                <li>Go to <b>Reports</b> and create a <b>Search term</b> report.</li>
+                <li>Use the same 90-day date range and all campaigns.</li>
+                <li>Include these columns, then run it and download as <b>CSV</b>:</li>
+              </ol>
+              <div class="colspec"><span class="req">Search term</span><span class="req">Spend</span><span class="req">Conversions</span><span>Delivered match type</span><span>Revenue</span><span>Clicks</span><span>Campaign name</span></div>
+            </details>
           </div>
+          <p class="xhelp"><span class="reqkey">Pink</span> columns are needed. The rest make the read much sharper, and the X-ray tells you which ones it found.</p>
         </div>
       </div>
       <div class="xstep">
@@ -44,6 +82,7 @@ nav: tools
         <span class="xn">3</span>
         <div>
           <h3>Drop in one or both files</h3>
+          <p>Campaigns alone tells you what is and isn't working. Adding search terms shows why.</p>
           <label class="drop" id="xr-drop">
             <input type="file" id="xr-file" accept=".csv,.tsv,.txt,text/csv" multiple>
             <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4m0 0-4 4m4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
@@ -52,6 +91,7 @@ nav: tools
           </label>
           <div class="xactions"><button class="btn ghost" type="button" id="xr-sample">Try it with sample data</button><button class="linkish" type="button" id="xr-reset" hidden>Clear and start again</button></div>
           <p class="xprivacy"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Your file is read by your browser and never leaves this page. Nothing is uploaded, stored or sent. Close the tab and it's gone.</p>
+          <p class="xreviewed">Rules reviewed monthly against Google Ads and Microsoft Advertising guidance. Last review: <b data-rules-reviewed>20 November 2026</b>.</p>
           <p class="xstatus" id="xr-status" role="status" aria-live="polite"></p>
         </div>
       </div>
@@ -60,9 +100,11 @@ nav: tools
     <div class="xout" id="xr-out" hidden>
       <div class="xouthead">
         <div><span class="tag" id="xr-label">Your account</span><h2 style="margin-top:10px">What the X-ray shows</h2></div>
-        <div class="xbtns"><button class="btn ghost" type="button" id="xr-copy">Copy summary</button><a class="btn pink" id="xr-talk" href="/contact/">Talk it through</a></div>
+        <div class="xbtns"><button class="btn ghost" type="button" id="xr-copy">Copy summary</button><a class="btn pink" id="xr-talk" href="/contact/">Email me these results</a></div>
       </div>
+      <div id="xr-check"></div>
       <div class="xtiles" id="xr-tiles"></div>
+      <div class="wwgrid" id="xr-ww"></div>
       <div class="xgrid">
         <div>
           <h3>Signals</h3>
@@ -74,6 +116,7 @@ nav: tools
         </div>
       </div>
       <div id="xr-terms"></div>
+      <details class="rulesbox"><summary>How the X-ray decides, and the platform guidance behind each rule</summary><p class="xhelp">Rules last reviewed against Google Ads and Microsoft Advertising guidance on <b data-rules-reviewed>20 November 2026</b>. They're checked every month and updated when the platforms change.</p><ol id="xr-rules"></ol></details>
       <p class="xnote">The X-ray only sees what's in the file. It can't see your margins, lead quality, attribution or what's happening in the auction, which is usually where the biggest answers are. That's what a <a href="/services/#review">Decision Review</a> is for.</p>
     </div>
   </div>
