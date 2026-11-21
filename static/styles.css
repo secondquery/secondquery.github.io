@@ -756,3 +756,79 @@ form.brieform{background:var(--surface);border:1.5px solid var(--rule);border-ra
 .offcol .offer .price small{display:inline;margin:0 0 0 5px;font-size:13px}
 
 .lcresult .lcline{display:block;margin-top:6px}
+
+/* sample Decision Review */
+.rv{display:grid;grid-template-columns:minmax(0,290px) minmax(0,1fr);gap:clamp(28px,4vw,56px);align-items:start}
+.rvside{position:sticky;top:96px;display:grid;gap:18px}
+.rvcard{background:var(--surface);border:1.5px solid var(--rule);border-radius:18px;padding:20px 22px;font-size:15px}
+.rvcard p{margin:0 0 12px}
+.rvk{font-size:12.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--quiet);margin:0 0 4px}
+.rvnav{display:grid;gap:2px;font-size:15px}
+.rvnav a{padding:7px 12px;border-radius:10px;text-decoration:none;color:var(--ink)}
+.rvnav a:hover,.rvnav a:focus-visible{background:var(--surface)}
+.rvdoc{background:var(--surface);border:1.5px solid var(--rule);border-radius:22px;padding:clamp(22px,4vw,48px);font-size:17px;max-width:860px}
+.rvdoc h2{font-size:clamp(22px,2.4vw,28px);margin:40px 0 12px;scroll-margin-top:96px}
+.rvdoc p{margin:0 0 14px}
+.rvq{border-left:4px solid var(--pink);background:var(--pinksoft);border-radius:0 14px 14px 0;padding:16px 20px}
+.rvqq{font-family:"Space Grotesk",sans-serif;font-size:clamp(19px,2vw,23px);line-height:1.35;margin:0!important}
+.rvlead{font-size:clamp(18px,1.8vw,21px);line-height:1.45}
+.rvconf{font-size:15.5px;background:var(--bg);border-radius:12px;padding:12px 16px}
+.rvtable{width:100%;border-collapse:collapse;font-size:15px;margin:6px 0 18px}
+.rvtable caption{text-align:left;font-size:13.5px;color:var(--quiet);padding-bottom:8px}
+.rvtable th,.rvtable td{padding:9px 10px;border-bottom:1px solid var(--rule);text-align:right;white-space:nowrap}
+.rvtable th:first-child,.rvtable td:first-child{text-align:left}
+.rvtable th{font-size:13px;color:var(--quiet);font-weight:600}
+.rvtable .rvhl td{background:var(--tealsoft)}
+.rvtable .rvtot td{font-weight:600;border-bottom:0}
+.rvlist{padding-left:20px}
+.rvlist li{margin-bottom:12px}
+.rvgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:6px 0 16px}
+.rvgrid>div{border:1.5px solid var(--rule);border-radius:14px;padding:14px 16px;font-size:15.5px}
+.rvgrid p{margin:0}
+.rvplan{padding-left:22px}
+.rvplan li{margin-bottom:12px}
+.rvboard{margin-top:34px;border-top:4px solid var(--teal);background:var(--tealsoft);border-radius:0 0 16px 16px;padding:18px 22px}
+@media (max-width:900px){.rv{grid-template-columns:minmax(0,1fr)}.rvside{position:static}.rvnav{display:none}.rvgrid{grid-template-columns:minmax(0,1fr)}}
+
+/* tools: sample-first start, currency picker; landing CTA facts */
+.xstart{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:18px}
+.xstart>div{background:var(--surface);border:1.5px solid var(--rule);border-radius:22px;padding:clamp(18px,2.6vw,28px)}
+.xstart>div:first-child{border-color:var(--pink);box-shadow:inset 4px 0 0 var(--pink)}
+.xstart h3{margin:0 0 8px}
+.xstart p{margin:0 0 16px;color:var(--quiet)}
+.xcur{display:grid;gap:6px;margin-top:16px;font-weight:600;font-size:15px;max-width:440px}
+.xcur select:disabled{opacity:.7}
+.ctafacts{max-width:44em;font-size:15.5px;color:var(--quiet);margin-top:16px}
+.sheet .stamp a{cursor:pointer;position:relative;z-index:4;font-weight:600}
+@media (max-width:720px){.xstart{grid-template-columns:minmax(0,1fr)}}
+
+/* case notes and sector breadth */
+.sectors{background:var(--surface);border:1.5px solid var(--rule);border-radius:22px;padding:clamp(20px,3vw,32px);margin-bottom:clamp(28px,4vw,48px)}
+.sectors h2{font-size:clamp(20px,2vw,24px);margin:0 0 14px}
+.sectors p{margin:14px 0 0;max-width:60em}
+.chips{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px}
+.chips li{border:1.5px solid var(--rule);background:var(--bg);border-radius:999px;padding:6px 14px;font-size:15px;font-weight:500}
+.case{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:clamp(24px,4vw,56px);padding:clamp(28px,4vw,48px) 0;border-top:1.5px solid var(--rule);scroll-margin-top:96px}
+.caseside h2{font-size:clamp(22px,2.4vw,28px);margin:12px 0 10px}
+.caserole{font-size:15px;color:var(--quiet);margin:0 0 18px}
+.casenums{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0}
+.casenums div{background:var(--surface);border:1.5px solid var(--rule);border-radius:14px;padding:12px 14px}
+.casenums div:first-child{border-color:var(--teal);box-shadow:inset 0 3px 0 var(--teal)}
+.casenums dt{font-family:"Space Grotesk",sans-serif;font-size:clamp(24px,2.6vw,30px);font-weight:700;line-height:1.1}
+.casenums dd{margin:4px 0 0;font-size:14px;color:var(--quiet)}
+.casebody{font-size:17px;max-width:720px}
+.casebody h3{margin:0 0 8px;font-size:18px}
+.casebody h3:not(:first-child){margin-top:24px}
+.casebody p,.casebody ul{margin:0 0 12px}
+.casebody ul{padding-left:20px}
+.casebody li{margin-bottom:6px}
+.casenote{font-size:14.5px;color:var(--quiet);background:var(--surface);border-radius:12px;padding:10px 14px}
+.proof{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:clamp(28px,5vw,72px);align-items:start}
+.prooflist{list-style:none;padding:0;margin:0}
+.prooflist li{display:grid;grid-template-columns:minmax(0,130px) minmax(0,1fr);gap:16px;padding:16px 0;border-top:1px solid var(--rule);align-items:baseline}
+.prooflist b.big{font-family:"Space Grotesk",sans-serif;font-size:clamp(26px,2.8vw,34px);line-height:1}
+.prooflist span{color:var(--quiet)}
+.prooflist span strong{color:var(--ink);font-weight:600}
+@media (max-width:900px){.case,.proof{grid-template-columns:minmax(0,1fr)}}
+.rvtable th{white-space:normal;vertical-align:bottom}
+.rvtable th,.rvtable td{padding:8px 8px}

@@ -196,16 +196,16 @@
       val('company').length > 1,
       checked('decision').length > 0,
       val('spend') !== '',
-      val('details').length >= 80
+      val('details').length >= 15
     ];
-    const names = ['Poor', 'Average', 'Good', 'Very good', 'Excellent'];
     const update = () => {
       const c = checks();
       const score = c.filter(Boolean).length;
       items.forEach((li, k) => li.classList.toggle('done', !!c[k]));
       const lit = Math.min(4, Math.round(score * 4 / 5));
       bars.forEach((b, k) => b.classList.toggle('on', k < lit));
-      labelEl.textContent = score === 0 ? 'Not started' : names[Math.max(0, score - 1)];
+      const extras = c.slice(1).filter(Boolean).length;
+      labelEl.textContent = score === 0 ? 'Not started' : !c[0] ? 'Add your name and email' : ['Enough to reply', 'Helpful', 'Helpful', 'Very helpful', 'Everything I need'][extras];
     };
     form.addEventListener('input', update);
     form.addEventListener('change', update);

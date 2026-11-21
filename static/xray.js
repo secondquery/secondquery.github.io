@@ -6,8 +6,15 @@
   if (!root) return;
   const $ = s => root.querySelector(s);
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const gbp = n => (n < 0 ? '-£' : '£') + Math.round(Math.abs(n)).toLocaleString('en-GB');
-  const gbp2 = n => '£' + n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  /* money is shown in the currency the file declares (or the visitor picks); with neither, amounts carry no symbol */
+  let CUR = '';
+  const money = (n, dp) => {
+    const a = Math.abs(n), sign = n < 0 ? '-' : '';
+    if (CUR) { try { return sign + new Intl.NumberFormat('en-GB', { style: 'currency', currency: CUR, minimumFractionDigits: dp, maximumFractionDigits: dp }).format(a); } catch (e) { /* unknown code */ } }
+    return sign + a.toLocaleString('en-GB', { minimumFractionDigits: dp, maximumFractionDigits: dp }) + (CUR ? ' ' + CUR : '');
+  };
+  const gbp = n => money(Math.round(n), 0);
+  const gbp2 = n => money(n, 2);
   const pct = n => (isFinite(n) ? Math.round(n * 100) : 0) + '%';
   const int = n => Math.round(n).toLocaleString('en-GB');
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -40,7 +47,7 @@
     root.querySelectorAll('.xtab').forEach(p => { p.hidden = p.dataset.pane !== b.dataset.tab; });
   }));
 
-  const status = $('#xr-status'), out = $('#xr-out'), fileIn = $('#xr-file'), drop = $('#xr-drop'), brandIn = $('#xr-brand'), reset = $('#xr-reset');
+  const status = $('#xr-status'), out = $('#xr-out'), fileIn = $('#xr-file'), drop = $('#xr-drop'), brandIn = $('#xr-brand'), curIn = $('#xr-cur'), reset = $('#xr-reset');
   const state = { campaigns: null, terms: null, sample: false, names: [], msgs: [] };
 
   /* ---------- reading files ---------- */
@@ -82,7 +89,7 @@
     let s = String(v).trim();
     if (!s || /^-+$/.test(s) || s === ' --') return NaN;
     if (/^</.test(s)) return parseFloat(s.replace(/[^\d.]/g, '')) / 2;
-    s = s.replace(/[<>%£$€\s ]/g, '').replace(/,/g, '');
+    s = s.replace(/^[A-Z]{3}\s*|\s*[A-Z]{3}$/g, '').replace(/[<>%£$€\s ]/g, '').replace(/,/g, '');
     const n = parseFloat(s);
     return isNaN(n) ? NaN : n;
   };
@@ -104,11 +111,12 @@
     share: { tests: ['search impr. share', 'impr. share (%)', 'impression share', 'search impression share', 'impr. share'], label: 'Search impr. share', unlocks: 'combining impression share accurately across days' },
     date: { tests: ['day', 'date', 'week', 'month', 'quarter', 'gregorian date', 'time period', 'week (mon - sun)', 'week (sun - sat)', 'week (monday)'], label: 'Day / week (optional)', unlocks: 'spotting trends across the period' },
     term: { tests: ['search term', 'search query'], label: 'Search term' },
+    currency: { tests: ['currency code', 'currency', 'account currency', 'currency code (account)', 'currencycode'], label: 'Currency code', unlocks: 'labelling money in the right currency' },
     match: { tests: ['match type', 'search term match type', 'delivered match type', 'keyword match type', 'bid match type'], label: 'Match type', unlocks: 'showing how much spend runs on broad match' }
   };
   const WANT = {
-    campaigns: { required: ['campaign', 'cost', 'conv'], recommended: ['type', 'value', 'lost', 'rank', 'share', 'impr', 'date'] },
-    terms: { required: ['term', 'cost', 'conv'], recommended: ['match', 'value'] }
+    campaigns: { required: ['campaign', 'cost', 'conv'], recommended: ['type', 'value', 'currency', 'lost', 'rank', 'share', 'impr', 'date'] },
+    terms: { required: ['term', 'cost', 'conv'], recommended: ['match', 'value', 'currency'] }
   };
 
   const readTable = text => {
@@ -136,7 +144,24 @@
     }
     const ms = hdr.includes('spend') || hdr.includes('campaign name') || hdr.includes('delivered match type');
     const kind = cols.term >= 0 ? 'terms' : (cols.campaign >= 0 ? 'campaigns' : null);
-    return { cols, data, kind, platform: ms ? 'Microsoft Advertising' : 'Google Ads', dateLine, fileTotal };
+    // which currency are the amounts in? a currency column wins, then a code in a header ("Cost (USD)"), then symbols in the cost cells
+    const curs = new Set(); let curFrom = '';
+    if (cols.currency >= 0) {
+      data.forEach(r => { const v = String(r[cols.currency] || '').trim().toUpperCase(); if (/^[A-Z]{3}$/.test(v)) curs.add(v); });
+      if (curs.size) curFrom = 'column';
+    }
+    if (!curs.size) {
+      const hc = rows[hi].map(h => (String(h).match(/\(([A-Z]{3})\)/) || [])[1]).filter(Boolean);
+      const pc = pre.map(l => (l.match(/currency(?: code)?\s*[:=]?\s*([A-Z]{3})\b/i) || [])[1]).filter(Boolean).map(x => x.toUpperCase());
+      [...hc, ...pc].forEach(c => curs.add(c));
+      if (curs.size) curFrom = 'header';
+    }
+    if (!curs.size && cols.cost >= 0) {
+      const symCur = { '£': 'GBP', '€': 'EUR', 'US$': 'USD', 'AED': 'AED' };
+      data.slice(0, 2000).forEach(r => { const v = String(r[cols.cost] || ''); const m = v.match(/US\$|£|€/); if (m) curs.add(symCur[m[0]]); });
+      if (curs.size) curFrom = 'symbol';
+    }
+    return { cols, data, kind, platform: ms ? 'Microsoft Advertising' : 'Google Ads', dateLine, fileTotal, currencies: [...curs], curFrom };
   };
 
   /* ---------- classification ---------- */
@@ -293,7 +318,15 @@
     let periodLabel = t.dateLine || '';
     let dates = [...byDate.keys()].sort((a, b) => a - b);
     if (dates.length) periodLabel = `${fmtDate(new Date(dates[0]))} to ${fmtDate(new Date(dates[dates.length - 1]))}`;
-    return { list, cost, conv, value, useValue, base, comparable, byDate, dates, dated, periodLabel, n: list.length, hasIS: c.lost >= 0 || c.rank >= 0, hasType, isPerf };
+    // say exactly which campaigns the benchmark covers, and which it leaves out
+    const chName = { Search: 'non-brand Search', Shopping: 'Shopping', 'Performance Max': 'Performance Max', Unknown: 'unclassified' };
+    const inCh = [...new Set(comparable.map(x => x.channel))];
+    const outCh = [...new Set(list.filter(x => !comparable.includes(x) && !x.isBrand).map(x => x.channel))];
+    const benchShort = inCh.map(ch => chName[ch] || ch).join(' + ') || 'none';
+    const benchLong = `The benchmark combines ${inCh.length ? inCh.map(ch => chName[ch] || ch).join(', ') : 'no'} campaigns and leaves out identified brand Search${outCh.length ? ` and ${outCh.join(', ')}` : ''}.${inCh.includes('Performance Max') ? ' Performance Max is included in full: it can pick up brand searches, and this export can\'t show how many.' : ''}`;
+    const ns = list.filter(x => x.channel === 'Search' && !x.isBrand);
+    const nsBase = ns.length >= 2 ? eff(sum(ns, 'cost'), sum(ns, 'conv'), sum(ns, 'value')) : NaN;
+    return { list, cost, conv, value, useValue, base, comparable, byDate, dates, dated, periodLabel, n: list.length, hasIS: c.lost >= 0 || c.rank >= 0, hasType, isPerf, hasConv: c.conv >= 0, hasValue: c.value >= 0, benchShort, benchLong, nsBase };
   };
 
   /* ---------- search terms analysis ---------- */
@@ -329,7 +362,7 @@
   const candidates = (C, T) => {
     const out = [];
     const add = (o) => { if (o) out.push({ evidence: 1, distinct: 0.7, ...o, score: 40 * Math.min(1, o.sig) + 30 * Math.min(1, o.mag) + 20 * (o.evidence ?? 1) + 10 * (o.distinct ?? 0.7) }); };
-    if (C) {
+    if (C && C.hasConv) {
       const tot = C.cost, uv = C.useValue;
       const sum = (arr, k) => arr.reduce((a, x) => a + x[k], 0);
       const eff = arr => uv ? sum(arr, 'value') / sum(arr, 'cost') : sum(arr, 'cost') / sum(arr, 'conv');
@@ -344,22 +377,26 @@
         if (isFinite(ratio) && ratio >= 2) add({
           id: 'brand', family: 'brand', sig: (bCost + nbCost) / tot, mag: Math.log2(ratio) / 3, evidence: brand.some(x => x.conf === 'high') ? 0.9 : 0.7, distinct: 0.8,
           head: 'Brand and non-brand are telling very different stories',
-          metrics: [`Brand: ${fmtEff(be, uv)}`, `All non-brand performance campaigns: ${fmtEff(ne, uv)}`],
+          metrics: [`Brand: ${fmtEff(be, uv)}`, `Benchmark (${C.benchShort}): ${fmtEff(ne, uv)}`],
           text: `${uv ? `Brand search is returning around ${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)} times what the rest of your performance activity does` : `Brand search is converting at around ${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)} times lower cost than the rest of your performance activity`}. Looking at the overall account average alone may be hiding part of the picture, and brand results raise their own question about how much of that demand would have arrived anyway.`,
-          note: (brand.some(x => x.conf === 'high') ? '' : 'Brand campaigns identified from their names. ') + 'The non-brand figure combines every non-brand performance campaign (Search, Performance Max, Shopping and Demand Gen where present), including any with no conversions.'
+          note: (brand.some(x => x.conf === 'high') ? '' : 'Brand campaigns identified from their names. ') + C.benchLong + ' Campaigns with no conversions are included.'
         });
       }
 
       // 2. growth signals: stronger Search/Shopping campaigns losing impression share to budget
-      const growth = C.list.filter(x => IS_OK.has(x.channel) && !x.isBrand && x.idx >= 1.15 && x.lost >= 15 && x.cost / tot >= 0.02 && x.conv >= 5);
+      const refOf = x => x.channel === 'Search' && isFinite(C.nsBase) ? C.nsBase : C.base;
+      const relIdx = x => !isFinite(x.eff) || !isFinite(refOf(x)) ? NaN : (uv ? x.eff / refOf(x) : refOf(x) / x.eff);
+      const growth = C.list.filter(x => IS_OK.has(x.channel) && !x.isBrand && relIdx(x) >= 1.15 && x.lost >= 15 && x.cost / tot >= 0.02 && x.conv >= 5).sort((a, b) => b.cost - a.cost);
       if (growth.length) {
         const maxLost = Math.max(...growth.map(x => x.lost));
         const approx = growth.some(x => x.isApprox);
+        const searchOnly = growth.every(x => x.channel === 'Search') && isFinite(C.nsBase);
+        const fe = v => uv ? v.toFixed(2) + 'x' : gbp2(v);
         add({
-          id: 'growth', family: 'budget', sig: sum(growth, 'cost') / tot * 2, mag: Math.min(1, maxLost / 40) * Math.min(1, (Math.max(...growth.map(x => x.idx)) - 1) / 0.5), evidence: approx ? 0.6 : 0.9, distinct: 1,
-          head: 'Some stronger Search campaigns are running into budget limits',
-          metrics: [`${growth.length} campaign${growth.length > 1 ? 's' : ''}`, `up to ${Math.round(maxLost)}% of impressions lost to budget`],
-          text: `${list3(growth.map(x => q(x.name)))} ${growth.length > 1 ? 'are' : 'is'} returning above the comparable average while also reporting meaningful impression share lost to budget. That could be worth exploring in more detail, although strong past returns don't guarantee the same from extra spend, and lost impression share isn't the same as lost revenue.`,
+          id: 'growth', family: 'budget', sig: sum(growth, 'cost') / tot * 2.4, mag: Math.min(1, maxLost / 40) * Math.min(1, (Math.max(...growth.map(relIdx)) - 1) / 0.5) + 0.2, evidence: approx ? 0.6 : 0.95, distinct: 1,
+          head: `${growth.length > 1 ? 'Stronger campaigns are' : 'A stronger campaign is'} losing impressions to budget`,
+          metrics: [growth.slice(0, 3).map(x => `${short(x.name, 28)} ${fe(x.eff)}`).join(', ') + ` vs ${searchOnly ? 'non-brand Search' : 'benchmark'} ${fe(searchOnly ? C.nsBase : C.base)}`, growth.slice(0, 3).map(x => `${Math.round(x.lost)}%`).join(' and ') + ' lost to budget'],
+          text: `${list3(growth.map(x => q(x.name)))} ${growth.length > 1 ? 'are' : 'is'} returning above ${searchOnly ? 'the non-brand Search average' : 'the comparable average'} while losing a meaningful share of impressions to budget. That supports a closer look at what extra budget would return at the margin. It can't tell you how much to move: the next pound rarely performs like the average one, and lost impression share isn't lost revenue.`,
           note: approx ? 'Impression share is combined across days, so it\'s approximate.' : ''
         });
       }
@@ -385,7 +422,7 @@
         const mostlyAware = sum(aware, 'cost') >= 0.6 * zCost;
         add({
           id: 'zero', family: 'zero', sig: zCost / tot * 2, mag: Math.min(1, zCost / tot / 0.2), evidence: 0.9, distinct: 0.7,
-          head: `${pct(zCost / tot)} of spend has no reported conversions`,
+          head: `${pct(zCost / tot)} of spend has zero recorded conversions`,
           metrics: [`${gbp(zCost)}`, `${zero.length} campaign${zero.length > 1 ? 's' : ''}`],
           text: mostlyAware
             ? `Most of it sits in ${[...new Set(aware.map(x => x.channel))].join(' and ')} activity, which may well have an awareness or remarketing role. If so, the interesting question is how that role is being measured, because the campaign export alone can't show it.`
@@ -567,7 +604,8 @@
   };
   const short = (s, n = 34) => s.length > n ? s.slice(0, n - 1) + '…' : s;
   const pct1 = n => !isFinite(n) ? '-' : (n > 0 && n < 0.01 ? '<1%' : Math.round(n * 100) + '%');
-  const compact = n => n >= 1e6 ? '£' + (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'm' : n >= 1e4 ? '£' + Math.round(n / 1e3) + 'k' : n >= 1e3 ? '£' + (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'k' : gbp(n);
+  const sym = () => { if (!CUR) return ''; try { const p = new Intl.NumberFormat('en-GB', { style: 'currency', currency: CUR }).formatToParts(0).find(x => x.type === 'currency'); return p ? p.value.replace(/^([A-Z]{3})$/, '$1 ') : ''; } catch (e) { return CUR + ' '; } };
+  const compact = n => n >= 1e6 ? sym() + (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'm' : n >= 1e4 ? sym() + Math.round(n / 1e3) + 'k' : n >= 1e3 ? sym() + (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'k' : gbp(n);
   const tipAttr = s => `data-tip="${esc(s)}" tabindex="0"`;
   const card = (title, sub, body, table, wide) => `<figure class="dcard${wide ? ' wide' : ''}"><figcaption><h3>${esc(title)}</h3>${sub ? `<p>${esc(sub)}</p>` : ''}</figcaption>${body}${table ? `<details class="tview"><summary>Show as a table</summary><div class="tablewrap">${table}</div></details>` : ''}</figure>`;
   const tbl = (head, rows) => `<table class="ctable"><thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
@@ -628,9 +666,11 @@
 
       // headline figures
       tiles.push({ l: 'Spend', v: gbp(C.cost), n: `${int(C.n)} campaign${C.n === 1 ? '' : 's'}${C.dates.length ? ` · ${C.dates.length > 1 ? Math.round((C.dates[C.dates.length - 1] - C.dates[0]) / 864e5) + 1 + ' days' : '1 day'}` : ''}` });
-      tiles.push({ l: 'Conversions', v: int(C.conv), n: C.value > 0 ? `${gbp(C.value)} conversion value` : 'as reported in the file' });
-      tiles.push(C.useValue ? { l: 'Return on ad spend', v: (C.value / C.cost).toFixed(2) + 'x', n: isFinite(C.base) ? `non-brand, all channels: ${C.base.toFixed(2)}x` : '' }
-        : { l: 'Cost per conversion', v: C.conv ? gbp2(C.cost / C.conv) : '-', n: isFinite(C.base) ? `non-brand, all channels: ${gbp2(C.base)}` : '' });
+      tiles.push(!C.hasConv ? { l: 'Conversions', v: 'Not in file', n: 'add the Conversions column' }
+        : { l: 'Conversions', v: C.conv < 0.5 ? '0' : int(C.conv), n: C.value > 0 ? `${gbp(C.value)} conversion value` : (C.hasValue ? 'no conversion value recorded' : 'no conversion value column') });
+      if (C.hasConv) tiles.push(C.useValue ? { l: 'Return on ad spend', v: (C.value / C.cost).toFixed(2) + 'x', n: isFinite(C.base) ? `benchmark (${C.benchShort}): ${C.base.toFixed(2)}x` : '' }
+        : (C.conv < 0.5 ? { l: 'Cost per conversion', v: 'n/a', n: 'zero recorded conversions' }
+          : { l: 'Cost per conversion', v: gbp2(C.cost / C.conv), n: isFinite(C.base) ? `benchmark (${C.benchShort}): ${gbp2(C.base)}` : '' }));
       if (GI.brand.cost > 0 && totRes > 0) tiles.push({ l: `Brand share of ${resName}`, v: pct1(res(GI.brand) / totRes), n: `from ${pct1(GI.brand.cost / C.cost)} of spend` });
       const isRows = C.list.filter(x => IS_OK.has(x.channel) && isFinite(x.lost));
       if (isRows.length) {
@@ -659,10 +699,13 @@
         const vmax = niceMax(Math.max(...withRes.map(effOf), isFinite(C.base) ? C.base : 0) * 1.05);
         const fmtE = v => C.useValue ? v.toFixed(2) + 'x' : gbp2(v);
         const better = x => C.useValue ? effOf(x) >= C.base : effOf(x) <= C.base;
-        const nb = withRes.filter(x => x.grp !== 'brand');
-        const beat = nb.filter(better).length;
-        const title = isFinite(C.base) && nb.length ? `${beat} of ${nb.length} non-brand campaign${nb.length > 1 ? 's' : ''} beat the all-channel non-brand average` : (C.useValue ? 'Return on ad spend by campaign' : 'Cost per conversion by campaign');
-        const sub = `${C.useValue ? 'Return on ad spend (conversion value ÷ spend). Longer is better.' : 'Cost per conversion. Shorter is better.'}${isFinite(C.base) ? ` The line marks the average for all non-brand performance campaigns together (every channel shown, including any with no conversions): ${fmtE(C.base)}.` : ''} Colours show the channel.`;
+        const inBench = withRes.filter(x => C.comparable.includes(x));
+        const beat = inBench.filter(better).length;
+        const benchAll = C.comparable.length;
+        const title = isFinite(C.base) && inBench.length ? `${beat} of ${benchAll} benchmark campaign${benchAll > 1 ? 's' : ''} beat the benchmark of ${fmtE(C.base)}` : (C.useValue ? 'Return on ad spend by campaign' : 'Cost per conversion by campaign');
+        const outside = withRes.filter(x => !C.comparable.includes(x));
+        const zeroIn = C.comparable.filter(x => !withRes.includes(x)).length;
+        const sub = `${C.useValue ? 'Return on ad spend (conversion value ÷ spend). Longer is better.' : 'Cost per conversion. Shorter is better.'}${isFinite(C.base) ? ` The line is the benchmark: ${C.benchShort} combined, ${fmtE(C.base)}.` : ''}${zeroIn ? ` ${zeroIn} benchmark campaign${zeroIn > 1 ? 's have' : ' has'} no recorded ${C.useValue ? 'value' : 'conversions'}, so ${zeroIn > 1 ? "they aren't" : "it isn't"} charted but ${zeroIn > 1 ? 'are' : 'is'} counted in the benchmark.` : ''}${outside.length ? ` ${[...new Set(outside.map(x => x.channel))].join(' and ')} ${outside.length > 1 ? 'are' : 'is'} shown for reference but not in the benchmark.` : ''} Colours show the channel.`;
         let body = hbars(withRes.map(x => ({ label: x.name, w: effOf(x) / vmax, c: G[x.grp].c, val: fmtE(effOf(x)), tip: `${x.name} · ${fmtE(effOf(x))} · ${gbp(x.cost)} spend · ${C.useValue ? gbp(x.value) + ' value' : int(x.conv) + ' conversions'}` })), isFinite(C.base) ? C.base / vmax : null);
         const usedG = GROUPS.filter(g => withRes.some(x => x.grp === g.k));
         body += legend(usedG);
@@ -712,9 +755,9 @@
     if (T) {
       if (!C) {
         tiles.push({ l: 'Search term spend', v: gbp(T.cost), n: `${int(T.n)} search terms` });
-        tiles.push({ l: 'Conversions', v: int(T.conv), n: T.conv ? `${gbp2(T.cost / T.conv)} per conversion` : '' });
+        tiles.push({ l: 'Conversions', v: T.conv < 0.5 ? '0' : int(T.conv), n: T.conv >= 0.5 ? `${gbp2(T.cost / T.conv)} per conversion` : 'zero recorded conversions' });
       }
-      tiles.push({ l: 'Search term spend with no conversions', v: pct1(T.zeroCost / T.cost), n: gbp(T.zeroCost) });
+      tiles.push({ l: 'Search term spend with zero recorded conversions', v: pct1(T.zeroCost / T.cost), n: gbp(T.zeroCost) });
       const brandC = T.list.filter(x => isBrandTerm(x.term));
       const bCost = brandC.reduce((a, x) => a + x.cost, 0);
       const convNB = T.list.filter(x => !isBrandTerm(x.term) && x.conv >= 0.5).reduce((a, x) => a + x.cost, 0);
@@ -790,6 +833,12 @@
     const errs = [...state.msgs, ...[state.campaigns, state.terms].filter(x => x && x.error).map(x => x.error)];
     state.msgs = [];
     if (!C && !T) { out.hidden = true; status.textContent = errs.join(' ') || 'Nothing readable in that file.'; return; }
+    const cc = C && state.raw_c.currencies[0] || '', tc = T && state.raw_t.currencies[0] || '';
+    if (cc && tc && cc !== tc) { out.hidden = true; status.textContent = `The campaign report is in ${cc} and the search terms report is in ${tc}. Load both reports from the same account.`; return; }
+    const fileCur = cc || tc, from = (C && cc ? state.raw_c : state.raw_t || {}).curFrom;
+    CUR = fileCur || (curIn && curIn.value) || '';
+    if (curIn) { curIn.disabled = !!fileCur; if (fileCur) curIn.value = [...curIn.options].some(o => o.value === fileCur) ? fileCur : ''; }
+    const curNote = fileCur ? `Amounts in ${fileCur}, as stated in the file${from === 'symbol' ? ' (from the currency symbols)' : ''}.` : (CUR ? `Amounts in ${CUR}, as you selected.` : "The file doesn't say which currency it's in, so amounts have no symbol. Pick the currency in step 2 to label them.");
     status.textContent = errs.join(' ');
 
     const D = renderDash(C, T);
@@ -798,7 +847,7 @@
     fitLabels();
     const tiles = D.tiles.map(t => [t.l, t.v]);
     const period = (C && C.periodLabel) || (state.raw_t && state.raw_t.dateLine) || '';
-    $('#xr-period').textContent = period ? 'Reporting period: ' + period : 'Reporting period: not stated in the file';
+    $('#xr-period').textContent = (period ? 'Reporting period: ' + period : 'Reporting period: not stated in the file') + '. ' + curNote;
 
     const picks = select(candidates(C, T));
     state.picks = picks;
@@ -807,9 +856,13 @@
     $('#xr-obs').innerHTML = obs;
 
     // executive summary: one line on the whole account, then the headline of each observation
+    const spent = C ? `${gbp(C.cost)} spent across ${int(C.n)} campaign${C.n === 1 ? '' : 's'}` : '';
     const lead = C
-      ? `${gbp(C.cost)} spent across ${int(C.n)} campaign${C.n === 1 ? '' : 's'}, bringing in ${C.useValue ? `${gbp(C.value)} of conversion value, a ${(C.value / C.cost).toFixed(2)}x return` : `${int(C.conv)} conversions at ${C.conv ? gbp2(C.cost / C.conv) : '-'} each`}.`
-      : `${gbp(T.cost)} of search term spend across ${int(T.n)} searches, with ${int(T.conv)} conversions.`;
+      ? (!C.hasConv ? `${spent}. The file has no Conversions column, so results can't be judged from it.`
+        : C.conv < 0.5 ? `${spent}, with zero recorded conversions.`
+        : C.useValue ? `${spent}, bringing in ${gbp(C.value)} of conversion value, a ${(C.value / C.cost).toFixed(2)}x return.`
+        : `${spent}, bringing in ${int(C.conv)} conversion${Math.round(C.conv) === 1 ? '' : 's'} at ${gbp2(C.cost / C.conv)} each${C.hasValue ? '' : ' (no conversion value column, so return on ad spend isn\'t shown)'}.`)
+      : `${gbp(T.cost)} of search term spend across ${int(T.n)} searches, ${T.conv < 0.5 ? 'with zero recorded conversions' : `with ${int(T.conv)} conversion${Math.round(T.conv) === 1 ? '' : 's'}`}.`;
     const points = picks.length ? picks.map(p => ({ h: p.head.replace(/\.$/, ''), m: (p.metrics || []).join(' · ') })) : [{ h: 'Nothing dramatic stands out on these numbers', m: '' }];
     $('#xr-sum').innerHTML = `<h2>The short version</h2><p class="xlead">${esc(lead)}</p><ul>${points.map(p => `<li><b>${esc(p.h)}.</b>${p.m ? ` <span>${esc(p.m)}</span>` : ''}</li>`).join('')}</ul>`;
 
@@ -820,7 +873,7 @@
     $('#xr-how').innerHTML = how;
 
     $('#xr-label').textContent = state.sample ? 'Sample data' : (state.names.join(' + ') || 'Your account');
-    const text = ['Second Query Account X-ray' + (state.sample ? ' (sample data)' : ''), period ? 'Period: ' + period : '', lead, tiles.map(t => `${t[0]}: ${t[1]}`).join(' | '), '', 'What caught our attention:', ...picks.map((p, i) => `${i + 1}. ${p.head} (${(p.metrics || []).join('; ')}). ${p.text}`)].filter(x => x !== null).join('\n');
+    const text = ['Second Query Account X-ray' + (state.sample ? ' (sample data)' : ''), period ? 'Period: ' + period : '', curNote, lead, tiles.map(t => `${t[0]}: ${t[1]}`).join(' | '), '', 'What caught our attention:', ...picks.map((p, i) => `${i + 1}. ${p.head} (${(p.metrics || []).join('; ')}). ${p.text}`)].filter(x => x !== null).join('\n');
     state.summary = text;
     $('#xr-talk').href = 'mailto:sam@secondquery.com?subject=' + encodeURIComponent('Account X-ray results') + '&body=' + encodeURIComponent(text + '\n\nMy question for Sam (edit this line): ');
     document.dispatchEvent(new CustomEvent('xray:ready'));
@@ -834,6 +887,10 @@
     const t = readTable(text);
     if (!t || !t.kind) {
       state.msgs.push(`${name}: I couldn't find a campaign or search term column. Check it's a CSV or TSV export from Google Ads or Microsoft Advertising.`);
+      return false;
+    }
+    if (t.currencies.length > 1) {
+      state.msgs.push(`${name}: this report mixes amounts in ${t.currencies.join(' and ')}. Adding them together would give totals with no common unit, so the X-ray hasn't read it. Filter the report to one currency (usually one account) and download it again.`);
       return false;
     }
     const missingReq = WANT[t.kind].required.filter(k => t.cols[k] < 0);
@@ -874,6 +931,7 @@
     const list = [...files].slice(0, 4);
     if (!list.length) return;
     Object.assign(state, { campaigns: null, terms: null, raw_c: null, raw_t: null, sample: false, names: [], msgs: [] });
+    if (curIn) curIn.disabled = false;
     status.textContent = 'Reading…';
     for (const f of list) {
       if (f.size > 25 * 1024 * 1024) { state.msgs.push(`${f.name} is over 25 MB. Try a shorter date range.`); continue; }
@@ -899,6 +957,7 @@
   ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
   drop.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
 
+  if (curIn) curIn.addEventListener('change', () => { if (state.raw_c || state.raw_t) { state.fromBrand = true; render(); } });
   brandIn.addEventListener('change', () => {
     if (state.raw_c) state.campaigns = analyseCampaigns(state.raw_c);
     if (state.raw_t) state.terms = analyseTerms(state.raw_t);
@@ -908,6 +967,7 @@
   reset.addEventListener('click', () => {
     Object.assign(state, { campaigns: null, terms: null, raw_c: null, raw_t: null, sample: false, names: [], msgs: [] });
     out.hidden = true; reset.hidden = true; status.textContent = ''; fileIn.value = '';
+    if (curIn) { curIn.disabled = false; curIn.value = ''; }
     document.dispatchEvent(new CustomEvent('xray:reset'));
   });
 
@@ -920,44 +980,44 @@
   /* ---------- sample data (a made-up homeware retailer, Google Ads format) ---------- */
   const SAMPLE_CAMPAIGNS = `Campaign performance report
 "1 August 2026 - 31 October 2026"
-Campaign status,Campaign,Campaign type,Bid strategy type,Budget,Cost,Impr.,Clicks,Conversions,Conv. value,Search impr. share,Search lost IS (budget),Search lost IS (rank)
-Enabled,Brand - Exact,Search,Target impression share,"400.00","18,361.20","264,612","59,640","1,920.00","288,000.00",> 90%,< 10%,< 10%
-Enabled,Non-brand - Sofas,Search,Maximise conversion value,"350.00","29,520.30","630,990","24,312",456.00,"123,120.00",41.20%,31.40%,27.40%
-Enabled,Non-brand - Beds,Search,Maximise conversion value,"250.00","21,616.65","542,820","18,960",288.00,"74,880.00",48.90%,22.80%,28.30%
-Enabled,Non-brand - Generic furniture,Search,Manual CPC,"300.00","26,880.60","1,206,354","29,733",123.00,"22,140.00",22.10%,0.00%,77.90%
-Enabled,Non-brand - Garden,Search,Maximise conversions,"120.00","6,102.00","88,410","3,920",11.00,"2,750.00",36.00%,12.50%,51.50%
-Enabled,PMax - All products,Performance Max,Maximise conversion value,"900.00","72,932.25","5,707,653","63,012","1,494.00","313,740.00",--,--,--
-Enabled,PMax - Clearance,Performance Max,Maximise conversion value,"200.00","13,440.90","1,833,660","14,610",174.00,"24,360.00",--,--,--
-Enabled,Display remarketing,Display,Maximise clicks,"100.00","8,820.00","5,640,360","9,312",0.00,0.00,--,--,--
-Enabled,Demand Gen - Prospecting,Demand Gen,Maximise conversions,"150.00","10,832.70","2,833,506","6,864",12.00,"1,920.00",--,--,--
+Campaign status,Campaign,Campaign type,Bid strategy type,Budget,Cost,Impr.,Clicks,Conversions,Conv. value,Search impr. share,Search lost IS (budget),Search lost IS (rank),Currency code
+Enabled,Brand - Exact,Search,Target impression share,"400.00","18,361.20","264,612","59,640","1,920.00","288,000.00",> 90%,< 10%,< 10%,GBP
+Enabled,Non-brand - Sofas,Search,Maximise conversion value,"350.00","29,520.30","630,990","24,312",456.00,"123,120.00",41.20%,31.40%,27.40%,GBP
+Enabled,Non-brand - Beds,Search,Maximise conversion value,"250.00","21,616.65","542,820","18,960",288.00,"74,880.00",48.90%,22.80%,28.30%,GBP
+Enabled,Non-brand - Generic furniture,Search,Manual CPC,"300.00","26,880.60","1,206,354","29,733",123.00,"22,140.00",22.10%,0.00%,77.90%,GBP
+Enabled,Non-brand - Garden,Search,Maximise conversions,"120.00","6,102.00","88,410","3,920",11.00,"2,750.00",36.00%,12.50%,51.50%,GBP
+Enabled,PMax - All products,Performance Max,Maximise conversion value,"900.00","72,932.25","5,707,653","63,012","1,494.00","313,740.00",--,--,--,GBP
+Enabled,PMax - Clearance,Performance Max,Maximise conversion value,"200.00","13,440.90","1,833,660","14,610",174.00,"24,360.00",--,--,--,GBP
+Enabled,Display remarketing,Display,Maximise clicks,"100.00","8,820.00","5,640,360","9,312",0.00,0.00,--,--,--,GBP
+Enabled,Demand Gen - Prospecting,Demand Gen,Maximise conversions,"150.00","10,832.70","2,833,506","6,864",12.00,"1,920.00",--,--,--,GBP
 Total: Account,,,,,"208,506.60","18,748,365","230,363","4,478.00","850,910.00",,,`;
 
   const SAMPLE_TERMS = `Search terms report
 "1 August 2026 - 31 October 2026"
-Search term,Match type,Added/Excluded,Campaign,Ad group,Clicks,Impr.,Cost,Conversions,Conv. value
-acme home,Exact match,Added,Brand - Exact,Brand,"28,230","93,600","7,230.60","1,164.00","174,600.00"
-acme home sofas,Phrase match,None,Brand - Exact,Brand,"8,640","26,820","2,461.20",288.00,"43,200.00"
-acme home discount code,Phrase match,None,Brand - Exact,Brand,"3,306","12,900","1,206.30",0.00,0.00
-grey corner sofa,Broad match,None,Non-brand - Sofas,Corner sofas,"3,720","114,300","4,836.00",102.00,"27,540.00"
-corner sofa bed with storage,Phrase match,None,Non-brand - Sofas,Sofa beds,"2,580","57,660","3,312.90",66.00,"17,820.00"
-velvet sofa 3 seater,Exact match,None,Non-brand - Sofas,3 seaters,"2,106","38,640","2,737.80",57.00,"15,390.00"
-how to clean a fabric sofa,Broad match,None,Non-brand - Sofas,Corner sofas,"4,464","198,030","3,571.20",0.00,0.00
-best sofa for a small living room uk,Broad match,None,Non-brand - Sofas,3 seaters,"1,536","66,900","1,920.00",6.00,"1,620.00"
-sofa jobs london,Broad match,None,Non-brand - Generic furniture,Furniture,"630","29,520","888.30",0.00,0.00
-free sofa collection near me,Broad match,None,Non-brand - Sofas,Corner sofas,"1,932","73,230","2,415.00",0.00,0.00
-second hand sofa free,Broad match,None,Non-brand - Generic furniture,Furniture,"1,170","45,060","1,404.00",0.00,0.00
-king size bed frame,Phrase match,None,Non-brand - Beds,Bed frames,"2,760","60,330","3,588.00",72.00,"18,720.00"
-ottoman storage bed double,Exact match,None,Non-brand - Beds,Storage beds,"1,830","34,260","2,433.90",54.00,"14,040.00"
-what size bed fits in a box room,Broad match,None,Non-brand - Beds,Bed frames,"2,106","92,640","2,527.20",0.00,0.00
-diy bed frame plans,Broad match,None,Non-brand - Beds,Bed frames,"1,065","42,300","1,278.00",0.00,0.00
-furniture,Broad match,None,Non-brand - Generic furniture,Furniture,"6,312","420,660","8,521.50",27.00,"4,860.00"
-furniture shop jobs,Broad match,None,Non-brand - Generic furniture,Furniture,"954","36,900","1,144.80",0.00,0.00
-cheap furniture,Broad match,None,Non-brand - Generic furniture,Furniture,"4,560","188,400","5,472.00",18.00,"3,240.00"
-sofa,Performance Max,None,PMax - All products,--,"11,640","631,200","12,804.00",183.00,"49,410.00"
-acme sofa sale,Performance Max,None,PMax - All products,--,"7,230","122,640","4,338.00",426.00,"89,460.00"
-mid century sideboard oak,Performance Max,None,PMax - All products,--,"3,360","132,600","4,032.00",84.00,"22,680.00"
-how to paint a wooden sideboard,Performance Max,None,PMax - All products,--,"2,790","154,200","3,069.00",0.00,0.00
-Other search terms,--,None,--,--,"9,480","402,000","10,320.00",96.00,"21,600.00"
+Search term,Match type,Added/Excluded,Campaign,Ad group,Clicks,Impr.,Cost,Conversions,Conv. value,Currency code
+acme home,Exact match,Added,Brand - Exact,Brand,"28,230","93,600","7,230.60","1,164.00","174,600.00",GBP
+acme home sofas,Phrase match,None,Brand - Exact,Brand,"8,640","26,820","2,461.20",288.00,"43,200.00",GBP
+acme home discount code,Phrase match,None,Brand - Exact,Brand,"3,306","12,900","1,206.30",0.00,0.00,GBP
+grey corner sofa,Broad match,None,Non-brand - Sofas,Corner sofas,"3,720","114,300","4,836.00",102.00,"27,540.00",GBP
+corner sofa bed with storage,Phrase match,None,Non-brand - Sofas,Sofa beds,"2,580","57,660","3,312.90",66.00,"17,820.00",GBP
+velvet sofa 3 seater,Exact match,None,Non-brand - Sofas,3 seaters,"2,106","38,640","2,737.80",57.00,"15,390.00",GBP
+how to clean a fabric sofa,Broad match,None,Non-brand - Sofas,Corner sofas,"4,464","198,030","3,571.20",0.00,0.00,GBP
+best sofa for a small living room uk,Broad match,None,Non-brand - Sofas,3 seaters,"1,536","66,900","1,920.00",6.00,"1,620.00",GBP
+sofa jobs london,Broad match,None,Non-brand - Generic furniture,Furniture,"630","29,520","888.30",0.00,0.00,GBP
+free sofa collection near me,Broad match,None,Non-brand - Sofas,Corner sofas,"1,932","73,230","2,415.00",0.00,0.00,GBP
+second hand sofa free,Broad match,None,Non-brand - Generic furniture,Furniture,"1,170","45,060","1,404.00",0.00,0.00,GBP
+king size bed frame,Phrase match,None,Non-brand - Beds,Bed frames,"2,760","60,330","3,588.00",72.00,"18,720.00",GBP
+ottoman storage bed double,Exact match,None,Non-brand - Beds,Storage beds,"1,830","34,260","2,433.90",54.00,"14,040.00",GBP
+what size bed fits in a box room,Broad match,None,Non-brand - Beds,Bed frames,"2,106","92,640","2,527.20",0.00,0.00,GBP
+diy bed frame plans,Broad match,None,Non-brand - Beds,Bed frames,"1,065","42,300","1,278.00",0.00,0.00,GBP
+furniture,Broad match,None,Non-brand - Generic furniture,Furniture,"6,312","420,660","8,521.50",27.00,"4,860.00",GBP
+furniture shop jobs,Broad match,None,Non-brand - Generic furniture,Furniture,"954","36,900","1,144.80",0.00,0.00,GBP
+cheap furniture,Broad match,None,Non-brand - Generic furniture,Furniture,"4,560","188,400","5,472.00",18.00,"3,240.00",GBP
+sofa,Performance Max,None,PMax - All products,--,"11,640","631,200","12,804.00",183.00,"49,410.00",GBP
+acme sofa sale,Performance Max,None,PMax - All products,--,"7,230","122,640","4,338.00",426.00,"89,460.00",GBP
+mid century sideboard oak,Performance Max,None,PMax - All products,--,"3,360","132,600","4,032.00",84.00,"22,680.00",GBP
+how to paint a wooden sideboard,Performance Max,None,PMax - All products,--,"2,790","154,200","3,069.00",0.00,0.00,GBP
+Other search terms,--,None,--,--,"9,480","402,000","10,320.00",96.00,"21,600.00",GBP
 Total: Search terms,,,,,"112,401","3,074,790","91,511.70","2,643.00","504,180.00"`;
 
   const weeklySample = csv => {

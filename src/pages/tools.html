@@ -14,7 +14,19 @@ nav: tools
 
 <section class="wrap" style="padding-bottom:clamp(40px,6vw,80px)">
   <div class="xray" id="xray">
-    <div class="xin">
+    <div class="xstart">
+      <div>
+        <h3>See it work first</h3>
+        <p>Run the X-ray on a made-up homeware retailer's account. One click, nothing to export.</p>
+        <button class="btn pink" type="button" id="xr-sample">Try it with sample data</button>
+      </div>
+      <div>
+        <h3>Or read your own account</h3>
+        <p>Export one or two reports (about five minutes the first time, one click after that), then drop them in. The steps are below.</p>
+        <a class="btn ghost" href="#xr-own">Use my own reports</a>
+      </div>
+    </div>
+    <div class="xin" id="xr-own">
       <div class="xstep">
         <span class="xn">1</span>
         <div>
@@ -25,7 +37,7 @@ nav: tools
             <button type="button" role="tab" aria-selected="false" data-tab="m">Microsoft Advertising</button>
           </div>
           <div class="xtab" data-pane="g">
-            <details class="howto" open>
+            <details class="howto">
               <summary><b>Report 1: Campaigns</b><span>about 3 minutes, then saved</span></summary>
               <ol>
                 <li>In Google Ads, open <b>Campaigns</b>, then <b>Insights and reports</b>, then <b>Report editor</b>. (Or type "Report editor" into the search bar at the top.)</li>
@@ -33,7 +45,7 @@ nav: tools
                 <li>Drag these into <b>Rows</b>: <b>Campaign</b>, <b>Campaign type</b>, and <b>Day</b> or <b>Week</b> if you'd like the trend charts.</li>
                 <li>Drag these into <b>Columns</b>:</li>
               </ol>
-              <div class="colspec"><span class="req">Cost</span><span class="req">Conversions</span><span>Conv. value</span><span>Clicks</span><span>Impr.</span><span>Search impr. share</span><span>Search lost IS (budget)</span><span>Search lost IS (rank)</span></div>
+              <div class="colspec"><span class="req">Cost</span><span class="req">Conversions</span><span>Conv. value</span><span>Currency code</span><span>Clicks</span><span>Impr.</span><span>Search impr. share</span><span>Search lost IS (budget)</span><span>Search lost IS (rank)</span></div>
               <ol start="5">
                 <li>Set the date range (top right) to the last 90 days.</li>
                 <li>Select <b>Save</b> and call it something like "X-ray: campaigns", then use the download icon and choose <b>.csv</b>.</li>
@@ -60,7 +72,7 @@ nav: tools
                 <li>Open the <b>Campaign</b> template (under Performance) and select <b>Modify</b>.</li>
                 <li>Check these metrics are included, adding any that are missing with the <b>+</b> next to <b>Metrics</b>. Add <b>Campaign type</b> as a breakdown, plus <b>Week</b> or <b>Day</b> if you'd like the trend charts.</li>
               </ol>
-              <div class="colspec"><span class="req">Campaign name</span><span class="req">Spend</span><span class="req">Conversions</span><span>Revenue</span><span>Clicks</span><span>Impressions</span><span>Impr. share</span><span>Impr. share lost to budget</span><span>Impr. share lost to rank</span></div>
+              <div class="colspec"><span class="req">Campaign name</span><span class="req">Spend</span><span class="req">Conversions</span><span>Revenue</span><span>Currency code</span><span>Clicks</span><span>Impressions</span><span>Impr. share</span><span>Impr. share lost to budget</span><span>Impr. share lost to rank</span></div>
               <ol start="4">
                 <li>Set the date range (top right) to the last 90 days and select <b>Save</b>.</li>
                 <li>Select <b>Download</b> and choose <b>.zip (CSV)</b>. You can drop the .zip straight in here; the X-ray opens it for you.</li>
@@ -82,10 +94,17 @@ nav: tools
       <div class="xstep">
         <span class="xn">2</span>
         <div>
-          <h3>Tell it your brand</h3>
+          <h3>Tell it your brand and currency</h3>
           <label class="sr" for="xr-brand">Your brand names</label>
           <input id="xr-brand" class="xinput" placeholder="e.g. acme, acme home" autocomplete="off">
           <p class="xhelp">Comma-separated. Used to split brand from non-brand. Campaigns with "brand" in the name count too.</p>
+          <label class="xcur" for="xr-cur">Account currency
+            <select id="xr-cur" class="xinput">
+              <option value="">Use the file's currency</option>
+              <option value="GBP">GBP (£)</option><option value="EUR">EUR (€)</option><option value="USD">USD ($)</option><option value="AED">AED</option><option value="AUD">AUD</option><option value="CAD">CAD</option><option value="CHF">CHF</option><option value="SEK">SEK</option><option value="NOK">NOK</option><option value="DKK">DKK</option><option value="SAR">SAR</option><option value="INR">INR</option><option value="ZAR">ZAR</option>
+            </select>
+          </label>
+          <p class="xhelp">Only needed if your file doesn't say. A currency in the file always wins, and a file that mixes currencies is turned away rather than added up.</p>
         </div>
       </div>
       <div class="xstep">
@@ -99,7 +118,7 @@ nav: tools
             <span><b>Choose files</b> or drag them here</span>
             <small>CSV, TSV or Microsoft .zip (CSV) reports from Google Ads or Microsoft Advertising</small>
           </label>
-          <div class="xactions"><button class="btn ghost" type="button" id="xr-sample">Try it with sample data</button><button class="linkish" type="button" id="xr-reset" hidden>Clear and start again</button></div>
+          <div class="xactions"><button class="linkish" type="button" id="xr-reset" hidden>Clear and start again</button></div>
           <p class="xprivacy"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Your file is read by your browser and never leaves this page. Nothing is uploaded, stored or sent. Close the tab and it's gone.</p>
           <p class="xreviewed">Rules reviewed monthly against Google Ads and Microsoft Advertising guidance. Last review: <b data-rules-reviewed>20 November 2026</b>.</p>
           <p class="xstatus" id="xr-status" role="status" aria-live="polite"></p>
@@ -137,7 +156,7 @@ nav: tools
   <div class="wrap two" style="align-items:center">
     <div>
       <h2>The learning clock</h2>
-      <p class="quiet" style="margin-top:16px">Changed a bid strategy, target or budget? Google's "Learning" label clears within seven days, but its guidance says calibration can take up to around 50 conversions or three conversion cycles. Put in your numbers to see how long to wait before judging the change.</p>
+      <p class="quiet" style="margin-top:16px">Changed a bid strategy, target or budget? Google's "Learning" label clears within seven days, but its guidance says calibration can take up to around 50 conversions or three conversion cycles. Put in your numbers for a rough sense of when there's enough data to judge the change. These are rules of thumb, not a fixed wait.</p>
       <p class="quiet">Read more in <a href="/insights/smart-bidding-learning-seven-days/">the note on Smart Bidding learning</a>.</p>
     </div>
     <div class="lclock">
