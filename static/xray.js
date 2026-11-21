@@ -891,6 +891,7 @@
       }
     }
     render();
+    if (window.sqTrack) window.sqTrack('xray_run');
   };
 
   fileIn.addEventListener('change', () => handleFiles(fileIn.files));

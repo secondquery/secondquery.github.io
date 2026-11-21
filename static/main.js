@@ -1,8 +1,9 @@
 {
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /* cookie consent and Google Ads measurement: nothing loads until the visitor accepts */
+  /* cookie consent, Google Ads and Google Analytics: nothing loads until the visitor accepts */
   const ADS_ID = 'AW-18587102702';
+  const GA4_ID = 'G-43M1VJ9SGS'; // GA4 property secondquery.com
   const LEAD_SEND_TO = 'AW-18587102702/G8ePCMKg2LwdEO7bgp9F';
   const EC_ON = true; // enhanced conversions: a hashed email is sent with the conversion, only with consent
   // what each enquiry is worth, in GBP: the price of the option picked (monthly options count three months)
@@ -20,16 +21,20 @@
   const loadTag = () => {
     if (tagLoaded) return;
     tagLoaded = true;
-    gtag('consent', 'default', { ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'denied', analytics_storage: 'denied' });
+    gtag('consent', 'default', { ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'denied', analytics_storage: 'granted' });
     gtag('js', new Date());
     gtag('config', ADS_ID, { allow_enhanced_conversions: EC_ON });
+    if (GA4_ID) gtag('config', GA4_ID, { allow_google_signals: false, allow_ad_personalization_signals: false, cookie_expires: 33696000 });
     const s = document.createElement('script');
     s.async = true;
     s.src = 'https://www.googletagmanager.com/gtag/js?id=' + ADS_ID;
     document.head.appendChild(s);
   };
+  // GA4 events: only sent once the visitor has accepted and the tag is loaded
+  const track = (name, params) => { if (tagLoaded && GA4_ID) gtag('event', name, Object.assign({ send_to: GA4_ID }, params || {})); };
+  window.sqTrack = track;
   const clearAdCookies = () => {
-    document.cookie.split(';').map(c => c.trim().split('=')[0]).filter(n => /^_gcl_/.test(n)).forEach(n => {
+    document.cookie.split(';').map(c => c.trim().split('=')[0]).filter(n => /^(_gcl_|_ga)/.test(n)).forEach(n => {
       document.cookie = n + '=; Max-Age=0; path=/';
       document.cookie = n + '=; Max-Age=0; path=/; domain=.' + location.hostname.replace(/^www\./, '');
     });
@@ -42,7 +47,7 @@
       bar.className = 'cookiebar';
       bar.setAttribute('role', 'region');
       bar.setAttribute('aria-label', 'Cookie choice');
-      bar.innerHTML = '<p><b>One cookie question.</b> If you accept, Google Ads sets a cookie so I can see which of my ads lead to enquiries. Nothing else is tracked, and declining changes nothing on the site. <a href="/privacy/#cookies">Privacy notice</a></p>' +
+      bar.innerHTML = '<p><b>One cookie question.</b> If you accept, Google Ads and Google Analytics set cookies so I can see which pages and ads lead to enquiries. No ad personalisation, and declining changes nothing on the site. <a href="/privacy/#cookies">Privacy notice</a></p>' +
         '<div class="cb-btns"><button type="button" class="btn ghost" data-c="denied">Decline</button><button type="button" class="btn" data-c="granted">Accept</button></div>';
       document.body.appendChild(bar);
       bar.addEventListener('click', e => {
@@ -51,7 +56,7 @@
         saveConsent(b.dataset.c);
         bar.hidden = true;
         if (b.dataset.c === 'granted') loadTag();
-        else { if (tagLoaded) gtag('consent', 'update', { ad_storage: 'denied', ad_user_data: 'denied' }); clearAdCookies(); }
+        else { if (tagLoaded) gtag('consent', 'update', { ad_storage: 'denied', ad_user_data: 'denied', analytics_storage: 'denied' }); clearAdCookies(); }
       });
     }
     bar.hidden = false;
@@ -79,11 +84,13 @@
       const el = document.getElementById(btn.dataset.copy);
       if (!el) return;
       const label = btn.textContent;
-      try { await navigator.clipboard.writeText(el.textContent); btn.textContent = 'Copied'; }
+      try { await navigator.clipboard.writeText(el.textContent); btn.textContent = 'Copied'; track('copy_script', { script_name: btn.dataset.copy.replace(/^code-/, '') }); }
       catch (e) { const box = el.closest('details'); if (box) box.open = true; btn.textContent = 'Select the code below'; }
       setTimeout(() => { btn.textContent = label; }, 2200);
     });
   });
+
+  document.querySelectorAll('a[download]').forEach(a => a.addEventListener('click', () => track('download_script', { script_name: a.getAttribute('href').split('/').pop().replace(/\.js$/, '') })));
 
   /* mobile navigation */
   const menuBtn = document.querySelector('.menu-btn');
@@ -249,6 +256,7 @@
           if (EC_ON) gtag('set', 'user_data', { email: payload.email });
           const value = (optSel && OPTION_VALUE[optSel.value]) || 795;
           gtag('event', 'conversion', { send_to: LEAD_SEND_TO, value: value, currency: 'GBP', transaction_id: 'brief-' + Date.now() });
+          track('generate_lead', { value: value, currency: 'GBP', lead_option: (optSel && optSel.value) || 'not-sure' });
         }
         form.classList.add('sent');
         form.innerHTML = `<div class="sentmsg" role="status"><h2>Thanks, ${payload.name.split(' ')[0].replace(/[<>&"]/g, '')}. Your brief is with me.</h2><p>You'll get a reply within two working days, usually sooner. A copy is on its way to ${payload.email.replace(/[<>&"]/g, '')}.</p><p>In the meantime, the free <a href="/tools/">Account X-ray</a> gives you a first read on your own account.</p></div>`;
