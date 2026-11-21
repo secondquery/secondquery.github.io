@@ -722,3 +722,11 @@ form.brieform{background:var(--surface);border:1.5px solid var(--rule);border-ra
 .codebox summary{cursor:pointer;padding:14px 18px;font-weight:600}
 .codebox pre.code{margin:0;max-height:520px;overflow:auto;padding:16px 18px;border-top:1px solid var(--rule);font:12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre;tab-size:2}
 .codebox pre.code code{background:none;padding:0;font:inherit}
+.heroffers.two{grid-template-columns:repeat(2,minmax(0,1fr));max-width:600px}
+.heroffers.two a{padding:14px 16px;gap:4px}
+.heroffers .hk{font-size:12.5px;font-weight:600;letter-spacing:.02em;color:var(--pinkink)}
+.heroffers.two b{font-size:22px}
+@media(max-width:560px){.heroffers.two{grid-template-columns:1fr}}
+.offgroup{margin-top:34px;font-size:15px;font-weight:600;letter-spacing:.02em;color:var(--pinkink);display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+.offgroup a{font-weight:500;font-size:14px;color:var(--quiet)}
+.offgroup + .offers{margin-top:12px}

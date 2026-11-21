@@ -102,9 +102,9 @@
   if (typed && snippet) {
     const pairs = [
       ['should we change our ppc agency', 'Get an independent read on what is working before you move the account, from someone who is not pitching for it.', 'decision-review'],
+      ['second opinion on our google ads plan', 'Have a senior paid search lead pressure-test your plan before it goes to the leadership team.', 'ppc-teams'],
       ['new head of performance first 90 days', 'Give your new lead an independent Google Ads baseline in their first weeks, so they start with a plan, not three months of discovery.', 'decision-review'],
-      ['bring google ads in-house', 'Know what to keep, what to rebuild and what your team should own first, before the move costs you a quarter.', 'services'],
-      ['where should the next £20k a month go', 'Find where extra budget is likely to work hardest, and what you need to measure before you scale it.', 'decision-review'],
+      ['moving to value based bidding', 'Check the targets, values and learning periods before you switch, not after the numbers move.', 'ppc-teams'],
       ['is performance max taking credit for our brand', 'Separate what Performance Max finds from what it simply claims, and decide what to do about it.', 'approach'],
       ['is ai max worth switching on', 'Judge it on your own margins and search terms, not on platform averages.', 'insights']
     ];
@@ -304,9 +304,10 @@
       { k: ['tracking', 'conversion', 'measure', 'attribution', 'ga4', 'analytics', 'offline', 'crm'], s: "If bidding is optimising towards the wrong thing, nothing else matters. It's the first thing every Review checks.", p: 'how-i-work', h: '/approach/' },
       { k: ['learning', 'smart bidding', 'tcpa', 'troas', 'target', 'bid strategy', 'bidding'], s: "The Learning label clears within seven days. The learning doesn't. Work out how long to wait before judging a change.", p: 'learning-clock', h: '/tools/#learning-clock' },
       { k: ['small business', 'small budget', 'myself', 'diy', 'freelancer', 'sole trader', 'small account'], s: 'Smaller accounts are welcome. Most start with the free Account X-ray or a £295 consultation and a one-page plan.', p: 'small-business', h: '/services/#small-business' },
+      { k: ['second opinion', 'our plan', 'my plan', 'the plan', 'restructure', 'workshop', 'training', 'train', 'value based', 'value-based', 'sounding board', 'in-house team', 'ppc team', 'our team'], s: 'For in-house PPC teams: send the plan and get a written senior critique within five working days, before you commit to it.', p: 'ppc-teams', h: '/ppc-teams/' },
       { k: ['microsoft', 'bing'], s: 'Microsoft Advertising is part of every Review wherever it carries meaningful spend or opportunity.', p: 'services', h: '/services/' },
       { k: ['audit', 'health', 'check', 'waste', 'wasted', 'negative', 'search term'], s: 'Start with the free Account X-ray: drop in a report and see where the waste is, without uploading anything.', p: 'account-x-ray', h: '/tools/' },
-      { k: ['price', 'how much', 'fee', 'pricing', 'cost of', 'charge'], s: 'Fixed prices, agreed up front: £295 for a consultation, £795 for a Focused Review, £1,750 for a Decision Review and £1,500 a month for advisory.', p: 'services', h: '/services/#quiz' }
+      { k: ['price', 'how much', 'fee', 'pricing', 'cost of', 'charge'], s: 'Fixed prices, agreed up front. For businesses: £295 to £1,750, or £1,500 a month. For in-house PPC teams: £295 to £1,250, or £2,000 a month.', p: 'services', h: '/services/' }
     ];
     const fallback = { s: "Not every question fits a box. Send it as a brief and you'll get a straight answer within two working days.", p: 'start-a-brief', h: '/contact/' };
     let current = fallback;
