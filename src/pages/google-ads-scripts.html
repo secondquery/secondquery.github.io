@@ -1,0 +1,125 @@
+---
+title: Free Google Ads scripts
+description: Free Google Ads scripts for PPC teams: a search term n-gram analyser, a daily anomaly alert and a monthly budget pacer. Read-only and ready to paste.
+seo_title: Free Google Ads Scripts: N-grams, Alerts, Pacing | Second Query
+path: /google-ads-scripts/
+nav: tools
+---
+<section class="wrap pagehead">
+  {{query:free google ads scripts}}
+  <h1>Free Google Ads scripts</h1>
+  <p class="lede">Three scripts I'd want running in any account. Each one only reads data, never changes anything, and writes its results to a tidy Google Sheet or a short email. Copy the code, change a setting or two, and you're done. No sign-up, and you're free to adapt them.</p>
+</section>
+
+<section class="wrap" style="padding-bottom:clamp(24px,4vw,40px)">
+  <div class="head2"><h2>Adding a script takes about two minutes</h2></div>
+  <ol class="steps">
+    <li><b>Open scripts.</b> In Google Ads, go to Tools, then Bulk actions, then Scripts, and click the blue plus.</li>
+    <li><b>Paste the code.</b> Delete the placeholder, paste the script and give it a name.</li>
+    <li><b>Change the settings.</b> They're at the top, in plain English: an email address, a budget or a date range.</li>
+    <li><b>Preview, then run.</b> Authorise it when asked, click Preview to check the log, then Run. Set a schedule if the script suggests one.</li>
+  </ol>
+</section>
+
+<section class="wrap" style="padding-bottom:clamp(48px,7vw,96px)">
+  <div class="service" id="ngram">
+    <div class="side">
+      <span class="tag">Weekly</span>
+      <h2 style="margin-top:12px">Search term n&#8209;gram analyser</h2>
+      <p>Find the words that waste money and the ones that convert, across thousands of search terms at once.</p>
+      <div class="actions"><button class="btn" type="button" data-copy="code-ngram-analyser">Copy the code</button><a class="btn ghost" href="/static/scripts/ngram-analyser.js" download>Download</a></div>
+    </div>
+    <div>
+      <h3>What it does</h3>
+      <p>Splits every search term from your Search campaigns into single words, two-word phrases and three-word phrases, then adds up impressions, clicks, cost and conversions for each one.</p>
+      <h3>What you get</h3>
+      <ul>
+        <li>A Summary tab with the headline numbers and a chart of the costliest phrases that haven't converted.</li>
+        <li>A tab for each n-gram length, sorted by cost, with filters on.</li>
+        <li>Pink flags where a phrase has spent at least twice your average cost per conversion without converting, and green flags for phrases converting at 80% or less of your average cost per conversion.</li>
+      </ul>
+      <h3>Settings worth knowing</h3>
+      <ul>
+        <li><code>LOOKBACK_DAYS</code>: 30 by default. Use 90 for smaller accounts.</li>
+        <li><code>WASTE_MIN_COST</code>: set your own threshold if you'd rather not use twice your average cost per conversion.</li>
+        <li><code>CAMPAIGN_NAME_CONTAINS</code>: limit it to non-brand campaigns, for example.</li>
+      </ul>
+      <details class="codebox"><summary>Show the code</summary>{{code:static/scripts/ngram-analyser.js}}</details>
+    </div>
+  </div>
+
+  <div class="service" id="anomaly">
+    <div class="side">
+      <span class="tag">Daily</span>
+      <h2 style="margin-top:12px">Performance anomaly alert</h2>
+      <p>An email the morning after something unusual happens, and silence when nothing does.</p>
+      <div class="actions"><button class="btn" type="button" data-copy="code-anomaly-alert">Copy the code</button><a class="btn ghost" href="/static/scripts/anomaly-alert.js" download>Download</a></div>
+    </div>
+    <div>
+      <h3>What it does</h3>
+      <p>Compares yesterday with the same weekday over the previous four weeks, for the account and for each campaign, so normal weekend dips don't set it off.</p>
+      <h3>What it flags</h3>
+      <ul>
+        <li>Cost or clicks up or down by more than 40%.</li>
+        <li>Conversions down or up by more than 50%, and cost per conversion moving by more than 50%.</li>
+        <li>A campaign that normally spends and spent nothing.</li>
+        <li>A day that spent more than a normal cost per conversion with no conversions at all.</li>
+      </ul>
+      <h3>Settings worth knowing</h3>
+      <ul>
+        <li><code>EMAIL</code>: who gets the alert. Separate several addresses with commas.</li>
+        <li><code>THRESHOLDS</code>: tighten or loosen each one.</li>
+        <li><code>MIN_BASELINE_CLICKS</code>: stops tiny campaigns raising false alarms.</li>
+      </ul>
+      <details class="codebox"><summary>Show the code</summary>{{code:static/scripts/anomaly-alert.js}}</details>
+    </div>
+  </div>
+
+  <div class="service" id="pacing">
+    <div class="side">
+      <span class="tag">Daily</span>
+      <h2 style="margin-top:12px">Monthly budget pacing monitor</h2>
+      <p>Know by the 10th whether the month will land on budget, not on the 30th.</p>
+      <div class="actions"><button class="btn" type="button" data-copy="code-budget-pacing">Copy the code</button><a class="btn ghost" href="/static/scripts/budget-pacing.js" download>Download</a></div>
+    </div>
+    <div>
+      <h3>What it does</h3>
+      <p>Tracks spend this month against your monthly budget. It works out where you should be by now, the run rate over the last seven days, the projected month-end spend and the daily spend needed to land on budget.</p>
+      <h3>What you get</h3>
+      <ul>
+        <li>A Google Sheet with the headline numbers, a chart of actual against ideal spend, and a table by campaign.</li>
+        <li>An email if the month is heading more than 10% over or under budget.</li>
+      </ul>
+      <h3>Settings worth knowing</h3>
+      <ul>
+        <li><code>MONTHLY_BUDGET</code>: in your account's currency.</li>
+        <li><code>TOLERANCE</code>: 0.10 means an email when the projection is more than 10% out.</li>
+        <li><code>CAMPAIGN_NAME_CONTAINS</code>: pace one group of campaigns against its own budget.</li>
+      </ul>
+      <details class="codebox"><summary>Show the code</summary>{{code:static/scripts/budget-pacing.js}}</details>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="wrap">
+    <div class="head2"><h2>People also ask</h2></div>
+    <div class="paa">
+      <details><summary>Are these Google Ads scripts safe to run?</summary><div class="ans">Yes. All three only read reporting data. They don't change bids, budgets, keywords or anything else, and you can read every line before you run them. Click Preview first to see exactly what each one would do.</div></details>
+      <details><summary>Do I need a Google Sheet first?</summary><div class="ans">No. Leave the spreadsheet setting blank and the script creates a Sheet in your Google Drive on the first run and logs its link. Paste that link into the setting so later runs update the same Sheet.</div></details>
+      <details><summary>Do they work in a manager (MCC) account?</summary><div class="ans">These versions are written for a single account. Add them to each account you want to cover, or ask me about a manager-account version for your team.</div></details>
+      <details><summary>Can I change them?</summary><div class="ans">Yes. They're free to use and adapt. Please keep the header so others can find the originals.</div></details>
+    </div>
+  </div>
+</section>
+
+<section class="band cta">
+  <div class="wrap">
+    <div>
+      <h2>Want a senior view on what the numbers say?</h2>
+      <p>The scripts show you where to look. If you'd like a second opinion on what to do about it, that's what the options for PPC teams are for.</p>
+      <div class="actions"><a class="btn pink" href="/ppc-teams/">Options for PPC teams</a><a class="btn ghost" href="/tools/">Try the Account X-ray</a></div>
+    </div>
+    <div>{{query:what does this n-gram mean for us}}</div>
+  </div>
+</section>

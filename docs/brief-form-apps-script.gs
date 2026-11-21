@@ -99,16 +99,16 @@ function setup() {
 }
 
 // ---------------------------------------------------------------------------
-// Lead stages. Change a lead's Status in the Briefs tab and the dates fill in by themselves.
-// Google Ads imports "Qualified at" and "Won at" each morning, so it learns which ads bring real clients.
-// Type the fee (GBP, ex VAT) in "Won value" when a lead becomes a client.
+// Lead stages. Change a lead's Status in the Briefs tab and the dates and values fill in by themselves.
+// Google Ads imports "Qualified at" (with "Qualified value") and "Won at" (with "Won value") each day,
+// so it learns which ads bring real clients. Overwrite "Won value" with the actual fee (GBP, ex VAT).
 var STAGES = ['New', 'Call booked', 'Qualified', 'Proposal sent', 'Won', 'Lost', 'Not a fit'];
 var QUALIFIED_STAGES = ['Qualified', 'Proposal sent', 'Won'];
 
 // Run once from the editor: adds the stage columns and the Status drop-down.
 function setupStages() {
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Briefs');
-  ['Qualified at', 'Won at', 'Won value', 'Won currency', 'Notes'].forEach(function (h) {
+  ['Qualified at', 'Won at', 'Won value', 'Won currency', 'Notes', 'Qualified value'].forEach(function (h) {
     var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
     if (head.indexOf(h) < 0) sh.getRange(1, sh.getLastColumn() + 1).setValue(h);
   });
@@ -119,6 +119,15 @@ function setupStages() {
     SpreadsheetApp.newDataValidation().requireValueInList(STAGES, true).setAllowInvalid(false).build());
   sh.getRange(2, col('Qualified at'), rows, 2).setNumberFormat('@');
   sh.getRange(2, col('Won value'), rows, 1).setNumberFormat('0.00');
+  sh.getRange(2, col('Qualified value'), rows, 1).setNumberFormat('0.00');
+}
+
+// What an enquiry is worth (GBP): the price of the option picked; monthly options count three months.
+function optionValue_(text) {
+  var m = String(text || '').match(/£([\d,]+)/);
+  if (!m) return 795;
+  var v = Number(m[1].replace(/,/g, ''));
+  return /month/i.test(text) ? v * 3 : v;
 }
 
 function onEdit(e) {
@@ -126,15 +135,22 @@ function onEdit(e) {
   var sh = e.range.getSheet();
   if (sh.getName() !== 'Briefs') return;
   var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-  var cS = head.indexOf('Status') + 1, cQ = head.indexOf('Qualified at') + 1;
-  var cW = head.indexOf('Won at') + 1, cC = head.indexOf('Won currency') + 1;
+  var c = function (h) { return head.indexOf(h) + 1; };
+  var cS = c('Status'), cQ = c('Qualified at'), cW = c('Won at'), cC = c('Won currency');
+  var cO = c('Option'), cQV = c('Qualified value'), cWV = c('Won value');
   if (!cS || !cQ || !cW || e.range.getColumn() > cS || e.range.getLastColumn() < cS) return;
   var stamp = Utilities.formatDate(new Date(), e.source.getSpreadsheetTimeZone(), "yyyy-MM-dd'T'HH:mm:ssXXX");
   for (var row = Math.max(e.range.getRow(), 2); row <= e.range.getLastRow(); row++) {
     var s = String(sh.getRange(row, cS).getValue()).trim();
-    if (QUALIFIED_STAGES.indexOf(s) >= 0 && !sh.getRange(row, cQ).getValue()) sh.getRange(row, cQ).setValue(stamp);
+    var expected = cO ? optionValue_(sh.getRange(row, cO).getValue()) : 795;
+    if (QUALIFIED_STAGES.indexOf(s) >= 0 && !sh.getRange(row, cQ).getValue()) {
+      sh.getRange(row, cQ).setValue(stamp);
+      if (cQV && !sh.getRange(row, cQV).getValue()) sh.getRange(row, cQV).setValue(expected);
+      if (cC && !sh.getRange(row, cC).getValue()) sh.getRange(row, cC).setValue('GBP');
+    }
     if (s === 'Won' && !sh.getRange(row, cW).getValue()) {
       sh.getRange(row, cW).setValue(stamp);
+      if (cWV && !sh.getRange(row, cWV).getValue()) sh.getRange(row, cWV).setValue(cQV && sh.getRange(row, cQV).getValue() || expected);
       if (cC && !sh.getRange(row, cC).getValue()) sh.getRange(row, cC).setValue('GBP');
     }
   }

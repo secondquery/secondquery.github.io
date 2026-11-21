@@ -26,8 +26,8 @@ MARK = ('<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="13.5" cy="13.5"
         '<path d="M21 21l7 7" stroke="#ff2e7e" stroke-width="3.6" stroke-linecap="round"/>'
         '<path d="M10.2 11.4c0-1.9 1.4-3.1 3.3-3.1s3.3 1.1 3.3 2.9c0 2.7-6.6 4.2-6.6 7.4h6.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>')
 
-NAV = [("services", "/services/", "Services"), ("approach", "/approach/", "How I work"),
-       ("tools", "/tools/", "Account X-ray"), ("insights", "/insights/", "Insights"), ("about", "/about/", "About")]
+NAV = [("services", "/services/", "For businesses"), ("ppc-teams", "/ppc-teams/", "For PPC teams"),
+       ("tools", "/tools/", "Free tools"), ("insights", "/insights/", "Insights"), ("about", "/about/", "About")]
 
 
 def parse_front(text):
@@ -147,12 +147,13 @@ def layout(title, description, path, body, nav_key="", extra_head="", seo_title=
     <div class="cols">
       <div>
         <a class="mark" href="/">{MARK}<span>Second Query</span></a>
-        <p style="margin-top:14px;max-width:34ch">Independent Google Ads advice for UK businesses, before the decisions that cost the most. Strategy only.</p>
+        <p style="margin-top:14px;max-width:34ch">Independent Google Ads advice for UK businesses and in-house PPC teams, before the decisions that cost the most. Strategy only.</p>
         <p><a href="mailto:{EMAIL}">{EMAIL}</a></p>
       </div>
-      <div><h4>Services</h4><ul><li><a href="/services/#consultation">Strategy consultation</a></li><li><a href="/services/#focused">Focused Review</a></li><li><a href="/services/#review">Decision Review</a></li><li><a href="/services/#advisory">Strategic advisory</a></li><li><a href="/google-ads-audit/">Google Ads audit</a></li><li><a href="/google-ads-agency-review/">Agency review</a></li></ul></div>
-      <div><h4>Free tools</h4><ul><li><a href="/tools/">Account X-ray</a></li><li><a href="/tools/#learning-clock">Learning clock</a></li><li><a href="/insights/">Insights</a></li></ul></div>
-      <div><h4>Second Query</h4><ul><li><a href="/about/">About</a></li><li><a href="/contact/">Contact</a></li><li><a href="/privacy/">Privacy notice</a></li></ul></div>
+      <div><h4>For businesses</h4><ul><li><a href="/services/#consultation">Strategy consultation</a></li><li><a href="/services/#focused">Focused Review</a></li><li><a href="/services/#review">Decision Review</a></li><li><a href="/services/#advisory">Strategic advisory</a></li><li><a href="/google-ads-audit/">Google Ads audit</a></li><li><a href="/google-ads-agency-review/">Agency review</a></li></ul></div>
+      <div><h4>For PPC teams</h4><ul><li><a href="/ppc-teams/#expert-session">Expert session</a></li><li><a href="/ppc-teams/#second-opinion">Strategy second opinion</a></li><li><a href="/ppc-teams/#workshop">Team workshop</a></li><li><a href="/ppc-teams/#team-advisory">Team advisory</a></li></ul></div>
+      <div><h4>Free tools</h4><ul><li><a href="/tools/">Account X-ray</a></li><li><a href="/google-ads-scripts/">Google Ads scripts</a></li><li><a href="/tools/#learning-clock">Learning clock</a></li><li><a href="/insights/">Insights</a></li></ul></div>
+      <div><h4>Second Query</h4><ul><li><a href="/approach/">How I work</a></li><li><a href="/about/">About</a></li><li><a href="/contact/">Contact</a></li><li><a href="/privacy/">Privacy notice</a></li></ul></div>
     </div>
     <div class="legal"><span>&copy; {year} Second Query, the trading name of Sam Hitchmough.</span><span>Cookies only with your consent. <a href="/privacy/#cookies" data-cookie-settings>Cookie settings</a></span></div>
   </div>
@@ -231,6 +232,8 @@ def build():
         body = (body.replace("{{latest_posts}}", latest).replace("{{all_posts}}", all_cards)
                 .replace("{{filters}}", filters).replace("{{email}}", EMAIL))
         body = re.sub(r"\{\{query:(.+?)\}\}", lambda m: query_bar(m.group(1)), body)
+        body = re.sub(r"\{\{code:([\w./-]+)\}\}", lambda m: '<pre class="code" id="code-' + Path(m.group(1)).stem + '"><code>' +
+                      html.escape((ROOT / m.group(1)).read_text(encoding="utf-8")) + '</code></pre>', body)
         path = meta["path"]
         write(path if path != "/404.html" else "404.html",
               layout(meta["title"], meta["description"], path if path != "/404.html" else "/404", body, meta.get("nav", ""),

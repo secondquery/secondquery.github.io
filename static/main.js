@@ -73,6 +73,18 @@
     });
   }
 
+  /* copy buttons for code blocks */
+  document.querySelectorAll('[data-copy]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const el = document.getElementById(btn.dataset.copy);
+      if (!el) return;
+      const label = btn.textContent;
+      try { await navigator.clipboard.writeText(el.textContent); btn.textContent = 'Copied'; }
+      catch (e) { const box = el.closest('details'); if (box) box.open = true; btn.textContent = 'Select the code below'; }
+      setTimeout(() => { btn.textContent = label; }, 2200);
+    });
+  });
+
   /* mobile navigation */
   const menuBtn = document.querySelector('.menu-btn');
   const nav = document.getElementById('nav');
