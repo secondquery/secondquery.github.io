@@ -737,13 +737,13 @@ form.brieform{background:var(--surface);border:1.5px solid var(--rule);border-ra
 @media(max-width:560px){.aud{grid-template-columns:1fr}}
 
 /* ways to work together: two accented columns rather than one long table */
-.offcols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-top:30px;align-items:start}
-.offcol{--acc:var(--pinkink);--accsoft:var(--pinksoft);background:var(--surface);border:1.5px solid var(--rule);border-top:4px solid var(--acc);border-radius:var(--radius);padding:6px 26px 10px}
+.offcols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-top:30px;align-items:stretch}
+.offcol{--acc:var(--pinkink);--accsoft:var(--pinksoft);display:flex;flex-direction:column;background:var(--surface);border:1.5px solid var(--rule);border-top:4px solid var(--acc);border-radius:var(--radius);padding:6px 26px 10px}
 .offcol.team{--acc:var(--teal);--accsoft:var(--tealsoft)}
 .offcol header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;padding:18px 0 14px}
 .offcol header h3{font-size:15px;font-weight:600;letter-spacing:.02em;color:var(--acc);font-family:Inter,system-ui,sans-serif}
 .offcol header a{font-size:14px;color:var(--quiet)}
-.offcol .offer{grid-template-columns:minmax(0,1fr) auto;gap:6px 18px;padding:20px 0}
+.offcol .offer{flex:1;align-content:center;grid-template-columns:minmax(0,1fr) auto;gap:6px 18px;padding:20px 0}
 .offcol .offer h3{grid-row:1;grid-column:1;font-size:19px}
 .offcol .offer .price{grid-row:1;grid-column:2;font-size:23px}
 .offcol .offer p{grid-column:1/-1;font-size:15.5px}
