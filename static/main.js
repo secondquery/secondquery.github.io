@@ -4,7 +4,10 @@
   /* cookie consent and Google Ads measurement: nothing loads until the visitor accepts */
   const ADS_ID = 'AW-18587102702';
   const LEAD_SEND_TO = 'AW-18587102702/G8ePCMKg2LwdEO7bgp9F';
-  const EC_ON = false; // enhanced conversions: switch on once accepted in Google Ads
+  const EC_ON = true; // enhanced conversions: a hashed email is sent with the conversion, only with consent
+  // what each enquiry is worth, in GBP: the price of the option picked (monthly options count three months)
+  const OPTION_VALUE = { 'consultation': 295, 'focused-review': 795, 'decision-review': 1750, 'advisory': 4500,
+    'expert-session': 295, 'second-opinion': 795, 'workshop': 1250, 'team-advisory': 6000 };
   const CONSENT_KEY = 'sq-consent-v1';
   const readConsent = () => {
     try { const c = JSON.parse(localStorage.getItem(CONSENT_KEY) || 'null'); if (c && Date.now() - c.t < 182 * 864e5) return c.v; } catch (e) {}
@@ -232,7 +235,8 @@
         if (!j.ok) throw new Error(j.error || 'not ok');
         if (consent && tagLoaded) {
           if (EC_ON) gtag('set', 'user_data', { email: payload.email });
-          gtag('event', 'conversion', { send_to: LEAD_SEND_TO, transaction_id: 'brief-' + Date.now() });
+          const value = (optSel && OPTION_VALUE[optSel.value]) || 795;
+          gtag('event', 'conversion', { send_to: LEAD_SEND_TO, value: value, currency: 'GBP', transaction_id: 'brief-' + Date.now() });
         }
         form.classList.add('sent');
         form.innerHTML = `<div class="sentmsg" role="status"><h2>Thanks, ${payload.name.split(' ')[0].replace(/[<>&"]/g, '')}. Your brief is with me.</h2><p>You'll get a reply within two working days, usually sooner. A copy is on its way to ${payload.email.replace(/[<>&"]/g, '')}.</p><p>In the meantime, the free <a href="/tools/">Account X-ray</a> gives you a first read on your own account.</p></div>`;
