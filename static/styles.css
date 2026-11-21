@@ -833,3 +833,25 @@ form.brieform{background:var(--surface);border:1.5px solid var(--rule);border-ra
 .rvtable th{white-space:normal;vertical-align:bottom}
 .rvtable th,.rvtable td{padding:8px 8px}
 .bookhint{font-size:14px;color:var(--quiet);margin:10px 0 0}
+
+/* service definitions: included / not included, rules */
+.incl{margin-top:18px;border:1.5px solid var(--rule);border-radius:14px;background:var(--surface)}
+.incl summary{cursor:pointer;padding:14px 18px;font-weight:600;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.incl summary::-webkit-details-marker{display:none}
+.incl summary::after{content:"+";font-size:22px;line-height:1;color:var(--pinkink)}
+.incl[open] summary::after{content:"−"}
+.incl summary:focus-visible{outline:3px solid var(--pink);outline-offset:2px;border-radius:12px}
+.inclbody{padding:0 18px 16px;font-size:15.5px}
+.inclbody p{margin:10px 0 0}
+.inclcols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:6px}
+.inclcols h4{font-size:14px;text-transform:uppercase;letter-spacing:.04em;color:var(--quiet);margin:8px 0 6px}
+.inclcols ul{list-style:none;padding:0;margin:0}
+.inclcols li{position:relative;padding:5px 0 5px 24px;margin:0}
+.inclcols ul.yes li::before{content:"✓";position:absolute;left:2px;top:5px;color:var(--teal);font-weight:700}
+.inclcols ul.no li::before{content:"×";position:absolute;left:3px;top:3px;color:var(--pinkink);font-weight:700;font-size:18px}
+.inclfoot{font-size:14px;color:var(--quiet)}
+.rules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 clamp(24px,4vw,56px);margin:26px 0 0}
+.rules div{border-top:1px solid var(--rule);padding:12px 0}
+.rules dt{font-weight:600}
+.rules dd{margin:4px 0 0;color:var(--quiet)}
+@media (max-width:720px){.inclcols,.rules{grid-template-columns:minmax(0,1fr)}}

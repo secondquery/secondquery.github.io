@@ -55,7 +55,8 @@ def query_bar(q, extra=""):
 
 
 def faq_schema(body):
-    qs = re.findall(r"<summary>(.*?)</summary>\s*<div class=\"ans\">(.*?)</div>", body, re.S)
+    # a question may not span another <summary>, so other <details> blocks on the page can't leak in
+    qs = re.findall(r"<summary>((?:(?!<summary>).)*?)</summary>\s*<div class=\"ans\">(.*?)</div>", body, re.S)
     if not qs:
         return ""
     strip = lambda s: html.unescape(re.sub(r"<[^>]+>", "", s)).strip()
