@@ -1,7 +1,64 @@
 {
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /* ad click IDs: kept in the page address as people move around the site, never stored on the device */
+  /* cookie consent and Google Ads measurement: nothing loads until the visitor accepts */
+  const ADS_ID = 'AW-18587102702';
+  const LEAD_SEND_TO = 'AW-18587102702/G8ePCMKg2LwdEO7bgp9F';
+  const EC_ON = false; // enhanced conversions: switch on once accepted in Google Ads
+  const CONSENT_KEY = 'sq-consent-v1';
+  const readConsent = () => {
+    try { const c = JSON.parse(localStorage.getItem(CONSENT_KEY) || 'null'); if (c && Date.now() - c.t < 182 * 864e5) return c.v; } catch (e) {}
+    return null;
+  };
+  const saveConsent = v => { try { localStorage.setItem(CONSENT_KEY, JSON.stringify({ v, t: Date.now() })); } catch (e) {} };
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = window.gtag || function () { window.dataLayer.push(arguments); };
+  let tagLoaded = false;
+  const loadTag = () => {
+    if (tagLoaded) return;
+    tagLoaded = true;
+    gtag('consent', 'default', { ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'denied', analytics_storage: 'denied' });
+    gtag('js', new Date());
+    gtag('config', ADS_ID, { allow_enhanced_conversions: EC_ON });
+    const s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://www.googletagmanager.com/gtag/js?id=' + ADS_ID;
+    document.head.appendChild(s);
+  };
+  const clearAdCookies = () => {
+    document.cookie.split(';').map(c => c.trim().split('=')[0]).filter(n => /^_gcl_/.test(n)).forEach(n => {
+      document.cookie = n + '=; Max-Age=0; path=/';
+      document.cookie = n + '=; Max-Age=0; path=/; domain=.' + location.hostname.replace(/^www\./, '');
+    });
+  };
+  const showCookieBar = () => {
+    let bar = document.getElementById('cookiebar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'cookiebar';
+      bar.className = 'cookiebar';
+      bar.setAttribute('role', 'region');
+      bar.setAttribute('aria-label', 'Cookie choice');
+      bar.innerHTML = '<p><b>One cookie question.</b> If you accept, Google Ads sets a cookie so I can see which of my ads lead to enquiries. Nothing else is tracked, and declining changes nothing on the site. <a href="/privacy/#cookies">Privacy notice</a></p>' +
+        '<div class="cb-btns"><button type="button" class="btn ghost" data-c="denied">Decline</button><button type="button" class="btn" data-c="granted">Accept</button></div>';
+      document.body.appendChild(bar);
+      bar.addEventListener('click', e => {
+        const b = e.target.closest('button[data-c]');
+        if (!b) return;
+        saveConsent(b.dataset.c);
+        bar.hidden = true;
+        if (b.dataset.c === 'granted') loadTag();
+        else { if (tagLoaded) gtag('consent', 'update', { ad_storage: 'denied', ad_user_data: 'denied' }); clearAdCookies(); }
+      });
+    }
+    bar.hidden = false;
+  };
+  const consentNow = readConsent();
+  if (consentNow === 'granted') loadTag();
+  else if (consentNow === null) showCookieBar();
+  document.querySelectorAll('[data-cookie-settings]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); showCookieBar(); }));
+
+  /* ad click IDs: kept in the page address as people move around the site */
   const CLICK_KEYS = ['gclid', 'gbraid', 'wbraid', 'msclkid'];
   const qp = new URLSearchParams(location.search);
   const clickIds = CLICK_KEYS.filter(k => qp.get(k)).map(k => [k, qp.get(k).slice(0, 200)]);
@@ -139,8 +196,10 @@
     ].join('\n');
 
     const started = Date.now();
-    const adBox = document.getElementById('f-adconsent-wrap');
-    if (adBox && clickIds.length) adBox.hidden = false;
+    const cookieGclid = () => {
+      const m = document.cookie.match(/(?:^|; )_gcl_aw=([^;]+)/);
+      return m ? decodeURIComponent(m[1]).split('.').slice(2).join('.') : '';
+    };
     const endpoint = form.dataset.endpoint || '';
     const mailtoFallback = () => {
       const subject = `Second Query brief: ${val('company') || val('name')}`;
@@ -157,18 +216,24 @@
       const btn = form.querySelector('button[type="submit"]');
       btn.disabled = true; btn.textContent = 'Sending…';
       status.textContent = '';
-      const consent = !!(form.elements.adconsent && form.elements.adconsent.checked);
+      const consent = readConsent() === 'granted';
+      const clicks = Object.fromEntries(clickIds);
+      if (consent && !clicks.gclid && cookieGclid()) clicks.gclid = cookieGclid().slice(0, 200);
       const payload = {
         option: optSel && optSel.value ? optSel.options[optSel.selectedIndex].text : 'Not sure yet',
         name: val('name'), email: val('email'), role: val('role'), company: val('company'),
         decision: checked('decision').join(', '), spend: val('spend'), timing: val('timing'), details: val('details'),
         website: val('website'), ms: Date.now() - started, page: location.pathname,
-        adConsent: consent, clicks: consent ? Object.fromEntries(clickIds) : {}
+        adConsent: consent, clicks: consent ? clicks : {}
       };
       try {
         const r = await fetch(endpoint, { method: 'POST', body: JSON.stringify(payload) });
         const j = await r.json();
         if (!j.ok) throw new Error(j.error || 'not ok');
+        if (consent && tagLoaded) {
+          if (EC_ON) gtag('set', 'user_data', { email: payload.email });
+          gtag('event', 'conversion', { send_to: LEAD_SEND_TO, transaction_id: 'brief-' + Date.now() });
+        }
         form.classList.add('sent');
         form.innerHTML = `<div class="sentmsg" role="status"><h2>Thanks, ${payload.name.split(' ')[0].replace(/[<>&"]/g, '')}. Your brief is with me.</h2><p>You'll get a reply within two working days, usually sooner. A copy is on its way to ${payload.email.replace(/[<>&"]/g, '')}.</p><p>In the meantime, the free <a href="/tools/">Account X-ray</a> gives you a first read on your own account.</p></div>`;
       } catch (err) {

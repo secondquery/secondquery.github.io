@@ -689,3 +689,10 @@ form.brieform{background:var(--surface);border:1.5px solid var(--rule);border-ra
 .adconsent input{margin-top:3px;flex:none;width:18px;height:18px}
 .sentmsg h2{font-size:clamp(22px,2.4vw,28px);margin:0 0 10px}
 .sentmsg p{color:var(--quiet);margin:0 0 8px}
+
+/* cookie choice */
+.cookiebar{position:fixed;z-index:30;left:50%;bottom:16px;transform:translateX(-50%);width:min(760px,calc(100% - 24px));display:flex;align-items:center;gap:14px 22px;padding:16px 18px;background:var(--surface);color:var(--ink);border:1px solid var(--rule);border-radius:var(--radius);box-shadow:0 12px 40px rgba(6,34,46,.18)}
+.cookiebar[hidden]{display:none}
+.cookiebar p{margin:0;font-size:14.5px;line-height:1.5}
+.cookiebar .cb-btns{display:flex;gap:10px;flex:none}
+@media(max-width:640px){.cookiebar{flex-direction:column;align-items:stretch}.cookiebar .cb-btns .btn{flex:1}}

@@ -154,7 +154,7 @@ def layout(title, description, path, body, nav_key="", extra_head="", seo_title=
       <div><h4>Free tools</h4><ul><li><a href="/tools/">Account X-ray</a></li><li><a href="/tools/#learning-clock">Learning clock</a></li><li><a href="/insights/">Insights</a></li></ul></div>
       <div><h4>Second Query</h4><ul><li><a href="/about/">About</a></li><li><a href="/contact/">Contact</a></li><li><a href="/privacy/">Privacy notice</a></li></ul></div>
     </div>
-    <div class="legal"><span>&copy; {year} Second Query, the trading name of Sam Hitchmough.</span><span>No cookies. Ad measurement only with your consent.</span></div>
+    <div class="legal"><span>&copy; {year} Second Query, the trading name of Sam Hitchmough.</span><span>Cookies only with your consent. <a href="/privacy/#cookies" data-cookie-settings>Cookie settings</a></span></div>
   </div>
 </footer>
 <script src="/static/main.js" defer></script>
