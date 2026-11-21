@@ -47,6 +47,7 @@
   // GA4 events: only sent once the visitor has accepted and the tag is loaded
   const track = (name, params) => { if (tagLoaded && GA4_ID) gtag('event', name, Object.assign({ send_to: GA4_ID }, params || {})); };
   window.sqTrack = track;
+  document.addEventListener('click', e => { const a = e.target.closest('a[data-book]'); if (a) track('book_click', { session: a.dataset.book }); });
   const clearAdCookies = () => {
     document.cookie.split(';').map(c => c.trim().split('=')[0]).filter(n => /^(_gcl_|_ga|_uet)/.test(n)).forEach(n => {
       document.cookie = n + '=; Max-Age=0; path=/';

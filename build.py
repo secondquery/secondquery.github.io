@@ -18,6 +18,9 @@ ROOT = Path(__file__).parent
 OUT = ROOT / "_site"
 SITE = "https://secondquery.com"
 EMAIL = "sam@secondquery.com"
+# Self-serve booking for the £295 sessions. Empty = the buttons open the brief form, as now.
+# Paste a Google Calendar appointment schedule link (or a Cal.com link) to switch every £295 button to "Pick a time".
+BOOKING = {"consultation": "", "expert-session": ""}
 BRAND = "Second Query"
 INDEXNOW_KEY = "d325655dfe07893a98583443d7d61935"  # public by design: proves to Bing/IndexNow that this site owns its pings
 
@@ -165,6 +168,14 @@ def layout(title, description, path, body, nav_key="", extra_head="", seo_title=
 """
 
 
+def book_button(kind, label):
+    url = BOOKING.get(kind, "")
+    if url:
+        return (f'<a class="btn" href="{html.escape(url)}" target="_blank" rel="noopener" data-book="{kind}">Pick a time</a>'
+                f'<p class="bookhint">Choose a slot in my calendar. You\'ll get the invoice and a short questionnaire straight after booking.</p>')
+    return f'<a class="btn" href="/contact/?option={kind}">{label}</a>'
+
+
 def fmt_date(d):
     return d.strftime("%-d %B %Y")
 
@@ -251,6 +262,7 @@ def build():
         body = (body.replace("{{latest_posts}}", latest).replace("{{all_posts}}", all_cards)
                 .replace("{{filters}}", filters).replace("{{email}}", EMAIL))
         body = re.sub(r"\{\{query:(.+?)\}\}", lambda m: query_bar(m.group(1)), body)
+        body = re.sub(r"\{\{book:([\w-]+)\|(.+?)\}\}", lambda m: book_button(m.group(1), m.group(2)), body)
         body = re.sub(r"\{\{code:([\w./-]+)\}\}", lambda m: '<pre class="code" id="code-' + Path(m.group(1)).stem + '"><code>' +
                       html.escape((ROOT / m.group(1)).read_text(encoding="utf-8")) + '</code></pre>', body)
         path = meta["path"]

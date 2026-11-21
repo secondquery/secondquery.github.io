@@ -832,3 +832,4 @@ form.brieform{background:var(--surface);border:1.5px solid var(--rule);border-ra
 @media (max-width:900px){.case,.proof{grid-template-columns:minmax(0,1fr)}}
 .rvtable th{white-space:normal;vertical-align:bottom}
 .rvtable th,.rvtable td{padding:8px 8px}
+.bookhint{font-size:14px;color:var(--quiet);margin:10px 0 0}
