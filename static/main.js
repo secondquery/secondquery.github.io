@@ -1,6 +1,18 @@
 {
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  /* ad click IDs: kept in the page address as people move around the site, never stored on the device */
+  const CLICK_KEYS = ['gclid', 'gbraid', 'wbraid', 'msclkid'];
+  const qp = new URLSearchParams(location.search);
+  const clickIds = CLICK_KEYS.filter(k => qp.get(k)).map(k => [k, qp.get(k).slice(0, 200)]);
+  if (clickIds.length) {
+    document.querySelectorAll('a[href^="/"]').forEach(a => {
+      const u = new URL(a.getAttribute('href'), location.origin);
+      clickIds.forEach(([k, v]) => u.searchParams.set(k, v));
+      a.setAttribute('href', u.pathname + u.search + u.hash);
+    });
+  }
+
   /* mobile navigation */
   const menuBtn = document.querySelector('.menu-btn');
   const nav = document.getElementById('nav');
@@ -126,16 +138,45 @@
       val('details')
     ].join('\n');
 
-    form.addEventListener('submit', e => {
+    const started = Date.now();
+    const adBox = document.getElementById('f-adconsent-wrap');
+    if (adBox && clickIds.length) adBox.hidden = false;
+    const endpoint = form.dataset.endpoint || '';
+    const mailtoFallback = () => {
+      const subject = `Second Query brief: ${val('company') || val('name')}`;
+      window.location.href = `mailto:sam@secondquery.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(briefText())}`;
+      status.textContent = 'Your email app should open with the brief filled in. If it does not, use Copy brief and email it to sam@secondquery.com.';
+    };
+    form.addEventListener('submit', async e => {
       e.preventDefault();
-      if (!val('name') || !val('email').includes('@')) {
+      if (!val('name') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val('email'))) {
         status.textContent = 'Please add your name and a work email so I can reply.';
         return;
       }
-      const subject = `Second Query brief: ${val('company') || val('name')}`;
-      const href = `mailto:sam@secondquery.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(briefText())}`;
-      window.location.href = href;
-      status.textContent = 'Your email app should open with the brief filled in. If it does not, use Copy brief and email it to sam@secondquery.com.';
+      if (!endpoint) { mailtoFallback(); return; }
+      const btn = form.querySelector('button[type="submit"]');
+      btn.disabled = true; btn.textContent = 'Sending…';
+      status.textContent = '';
+      const consent = !!(form.elements.adconsent && form.elements.adconsent.checked);
+      const payload = {
+        option: optSel && optSel.value ? optSel.options[optSel.selectedIndex].text : 'Not sure yet',
+        name: val('name'), email: val('email'), role: val('role'), company: val('company'),
+        decision: checked('decision').join(', '), spend: val('spend'), timing: val('timing'), details: val('details'),
+        website: val('website'), ms: Date.now() - started, page: location.pathname,
+        adConsent: consent, clicks: consent ? Object.fromEntries(clickIds) : {}
+      };
+      try {
+        const r = await fetch(endpoint, { method: 'POST', body: JSON.stringify(payload) });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error || 'not ok');
+        form.classList.add('sent');
+        form.innerHTML = `<div class="sentmsg" role="status"><h2>Thanks, ${payload.name.split(' ')[0].replace(/[<>&"]/g, '')}. Your brief is with me.</h2><p>You'll get a reply within two working days, usually sooner. A copy is on its way to ${payload.email.replace(/[<>&"]/g, '')}.</p><p>In the meantime, the free <a href="/tools/">Account X-ray</a> gives you a first read on your own account.</p></div>`;
+      } catch (err) {
+        btn.disabled = false; btn.textContent = 'Send brief';
+        status.innerHTML = 'That didn\'t send. Please try again, or <a href="#" id="mailfallback">email it instead</a>.';
+        const fb = document.getElementById('mailfallback');
+        if (fb) fb.addEventListener('click', ev => { ev.preventDefault(); mailtoFallback(); });
+      }
     });
 
     const copyBtn = document.getElementById('copy');
