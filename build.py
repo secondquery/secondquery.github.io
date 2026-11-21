@@ -206,7 +206,26 @@ def source_list(sources):
     return f'<section class="sources"><h2>Sources</h2><ul>{"".join(items)}</ul></section>'
 
 
+def asset_versions():
+    """Short content hashes so browsers fetch new CSS and JS as soon as they change."""
+    import hashlib
+    out = {}
+    for name in ("styles.css", "main.js", "xray.js"):
+        f = ROOT / "static" / name if (ROOT / "static" / name).exists() else None
+        if f:
+            out[f"/static/{name}"] = hashlib.sha1(f.read_bytes()).hexdigest()[:10]
+    return out
+
+
+ASSET_V = None
+
+
 def write(path, content):
+    global ASSET_V
+    if ASSET_V is None:
+        ASSET_V = asset_versions()
+    for ref, v in ASSET_V.items():
+        content = content.replace(f'"{ref}"', f'"{ref}?v={v}"')
     target = OUT / path.lstrip("/")
     if path.endswith("/"):
         target = target / "index.html"
