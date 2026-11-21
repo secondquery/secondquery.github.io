@@ -5,6 +5,8 @@
   const ADS_ID = 'AW-18587102702';
   const GA4_ID = 'G-43M1VJ9SGS'; // GA4 property secondquery.com
   const LEAD_SEND_TO = 'AW-18587102702/G8ePCMKg2LwdEO7bgp9F';
+  // Microsoft Advertising UET tag ID. Empty = Microsoft tracking stays off. Paste the ID from Microsoft Ads (Tools > UET tag) to switch it on.
+  const UET_ID = '';
   const EC_ON = true; // enhanced conversions: a hashed email is sent with the conversion, only with consent
   // what each enquiry is worth, in GBP: the price of the option picked (monthly options count three months)
   const OPTION_VALUE = { 'consultation': 295, 'focused-review': 795, 'decision-review': 1750, 'advisory': 4500,
@@ -29,12 +31,24 @@
     s.async = true;
     s.src = 'https://www.googletagmanager.com/gtag/js?id=' + ADS_ID;
     document.head.appendChild(s);
+    loadUet();
   };
+  // Microsoft UET: loaded only after Accept, with consent mode set before the tag
+  let uetLoaded = false;
+  function loadUet() {
+    if (!UET_ID || uetLoaded) return;
+    uetLoaded = true;
+    window.uetq = window.uetq || [];
+    window.uetq.push('consent', 'default', { ad_storage: 'denied' });
+    window.uetq.push('consent', 'update', { ad_storage: 'granted' });
+    (function (w, d, t, r, u) { let f, n, i; w[u] = w[u] || []; f = function () { const o = { ti: UET_ID, enableAutoSpaTracking: true }; o.q = w[u]; w[u] = new UET(o); w[u].push('pageLoad'); }; n = d.createElement(t); n.src = r; n.async = 1; n.onload = n.onreadystatechange = function () { const s = this.readyState; if (!s || s === 'loaded' || s === 'complete') { f(); n.onload = n.onreadystatechange = null; } }; i = d.getElementsByTagName(t)[0]; i.parentNode.insertBefore(n, i); })(window, document, 'script', 'https://bat.bing.com/bat.js', 'uetq');
+  }
+  const uetEvent = (name, params) => { if (uetLoaded && window.uetq) window.uetq.push('event', name, params || {}); };
   // GA4 events: only sent once the visitor has accepted and the tag is loaded
   const track = (name, params) => { if (tagLoaded && GA4_ID) gtag('event', name, Object.assign({ send_to: GA4_ID }, params || {})); };
   window.sqTrack = track;
   const clearAdCookies = () => {
-    document.cookie.split(';').map(c => c.trim().split('=')[0]).filter(n => /^(_gcl_|_ga)/.test(n)).forEach(n => {
+    document.cookie.split(';').map(c => c.trim().split('=')[0]).filter(n => /^(_gcl_|_ga|_uet)/.test(n)).forEach(n => {
       document.cookie = n + '=; Max-Age=0; path=/';
       document.cookie = n + '=; Max-Age=0; path=/; domain=.' + location.hostname.replace(/^www\./, '');
     });
@@ -56,7 +70,7 @@
         saveConsent(b.dataset.c);
         bar.hidden = true;
         if (b.dataset.c === 'granted') loadTag();
-        else { if (tagLoaded) gtag('consent', 'update', { ad_storage: 'denied', ad_user_data: 'denied', analytics_storage: 'denied' }); clearAdCookies(); }
+        else { if (tagLoaded) gtag('consent', 'update', { ad_storage: 'denied', ad_user_data: 'denied', analytics_storage: 'denied' }); if (uetLoaded) window.uetq.push('consent', 'update', { ad_storage: 'denied' }); clearAdCookies(); }
       });
     }
     bar.hidden = false;
@@ -263,6 +277,7 @@
           const value = (optSel && OPTION_VALUE[optSel.value]) || 795;
           gtag('event', 'conversion', { send_to: LEAD_SEND_TO, value: value, currency: 'GBP', transaction_id: 'brief-' + Date.now() });
           track('generate_lead', { value: value, currency: 'GBP', lead_option: (optSel && optSel.value) || 'not-sure' });
+          uetEvent('submit_lead_form', { revenue_value: value, currency: 'GBP' });
         }
         form.classList.add('sent');
         form.innerHTML = `<div class="sentmsg" role="status"><h2>Thanks, ${payload.name.split(' ')[0].replace(/[<>&"]/g, '')}. Your brief is with me.</h2><p>You'll get a reply within two working days, usually sooner. A copy is on its way to ${payload.email.replace(/[<>&"]/g, '')}.</p><p>In the meantime, the free <a href="/tools/">Account X-ray</a> gives you a first read on your own account.</p></div>`;
