@@ -97,3 +97,45 @@ function setup() {
   var s1 = ss.getSheetByName('Sheet1'); if (s1 && ss.getSheets().length > 1) ss.deleteSheet(s1);
   MailApp.getRemainingDailyQuota();
 }
+
+// ---------------------------------------------------------------------------
+// Lead stages. Change a lead's Status in the Briefs tab and the dates fill in by themselves.
+// Google Ads imports "Qualified at" and "Won at" each morning, so it learns which ads bring real clients.
+// Type the fee (GBP, ex VAT) in "Won value" when a lead becomes a client.
+var STAGES = ['New', 'Call booked', 'Qualified', 'Proposal sent', 'Won', 'Lost', 'Not a fit'];
+var QUALIFIED_STAGES = ['Qualified', 'Proposal sent', 'Won'];
+
+// Run once from the editor: adds the stage columns and the Status drop-down.
+function setupStages() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Briefs');
+  ['Qualified at', 'Won at', 'Won value', 'Won currency', 'Notes'].forEach(function (h) {
+    var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    if (head.indexOf(h) < 0) sh.getRange(1, sh.getLastColumn() + 1).setValue(h);
+  });
+  var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var col = function (h) { return head.indexOf(h) + 1; };
+  var rows = sh.getMaxRows() - 1;
+  sh.getRange(2, col('Status'), rows, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInList(STAGES, true).setAllowInvalid(false).build());
+  sh.getRange(2, col('Qualified at'), rows, 2).setNumberFormat('@');
+  sh.getRange(2, col('Won value'), rows, 1).setNumberFormat('0.00');
+}
+
+function onEdit(e) {
+  if (!e || !e.range) return;
+  var sh = e.range.getSheet();
+  if (sh.getName() !== 'Briefs') return;
+  var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var cS = head.indexOf('Status') + 1, cQ = head.indexOf('Qualified at') + 1;
+  var cW = head.indexOf('Won at') + 1, cC = head.indexOf('Won currency') + 1;
+  if (!cS || !cQ || !cW || e.range.getColumn() > cS || e.range.getLastColumn() < cS) return;
+  var stamp = Utilities.formatDate(new Date(), e.source.getSpreadsheetTimeZone(), "yyyy-MM-dd'T'HH:mm:ssXXX");
+  for (var row = Math.max(e.range.getRow(), 2); row <= e.range.getLastRow(); row++) {
+    var s = String(sh.getRange(row, cS).getValue()).trim();
+    if (QUALIFIED_STAGES.indexOf(s) >= 0 && !sh.getRange(row, cQ).getValue()) sh.getRange(row, cQ).setValue(stamp);
+    if (s === 'Won' && !sh.getRange(row, cW).getValue()) {
+      sh.getRange(row, cW).setValue(stamp);
+      if (cC && !sh.getRange(row, cC).getValue()) sh.getRange(row, cC).setValue('GBP');
+    }
+  }
+}
