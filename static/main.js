@@ -198,7 +198,13 @@
     update();
 
     const optSel = form.elements.option;
-    const want = new URLSearchParams(location.search).get('option');
+    const sp = new URLSearchParams(location.search);
+    const want = sp.get('option');
+    // carry the quiz answers across without changing their meaning
+    [['spend', form.elements.spend], ['timing', form.elements.timing]].forEach(([k, el]) => {
+      const v = sp.get(k);
+      if (el && v && [...el.options].some(o => o.value === v)) el.value = v;
+    });
     if (optSel && want && [...optSel.options].some(o => o.value === want)) {
       optSel.value = want;
       const picked = document.getElementById('picked');
@@ -211,7 +217,7 @@
       `Company: ${val('company')}`,
       `Email: ${val('email')}`,
       `Decision: ${checked('decision').join(', ') || 'Not said'}`,
-      `Monthly Google Ads spend: ${val('spend') || 'Not said'}`,
+      `Monthly paid search spend: ${val('spend') || 'Not said'}`,
       `Timing: ${val('timing') || 'Not said'}`,
       '',
       val('details')
@@ -313,7 +319,7 @@
       { k: ['learning', 'smart bidding', 'tcpa', 'troas', 'target', 'bid strategy', 'bidding'], s: "The Learning label clears within seven days. The learning doesn't. Work out how long to wait before judging a change.", p: 'learning-clock', h: '/tools/#learning-clock' },
       { k: ['small business', 'small budget', 'myself', 'diy', 'freelancer', 'sole trader', 'small account'], s: 'Smaller accounts are welcome. Most start with the free Account X-ray or a £295 consultation and a one-page plan.', p: 'small-business', h: '/services/#small-business' },
       { k: ['second opinion', 'our plan', 'my plan', 'the plan', 'restructure', 'workshop', 'training', 'train', 'value based', 'value-based', 'sounding board', 'in-house team', 'ppc team', 'our team'], s: 'For in-house PPC teams: send the plan and get a written senior critique within five working days, before you commit to it.', p: 'ppc-teams', h: '/ppc-teams/' },
-      { k: ['microsoft', 'bing'], s: 'Microsoft Advertising is part of every Review wherever it carries meaningful spend or opportunity.', p: 'services', h: '/services/' },
+      { k: ['microsoft', 'bing', 'microsoft ads', 'microsoft advertising', 'bing ads'], s: 'A Focused Review can cover a Microsoft Advertising account on its own, and every Decision Review includes Microsoft wherever it carries spend.', p: 'services › microsoft', h: '/services/#microsoft' },
       { k: ['audit', 'health', 'check', 'waste', 'wasted', 'negative', 'search term'], s: 'Start with the free Account X-ray: drop in a report and see where the waste is, without uploading anything.', p: 'account-x-ray', h: '/tools/' },
       { k: ['price', 'how much', 'fee', 'pricing', 'cost of', 'charge'], s: 'Fixed prices, agreed up front. For businesses: £295 to £1,750, or £1,500 a month. For in-house PPC teams: £295 to £1,250, or £2,000 a month.', p: 'services', h: '/services/' }
     ];
@@ -392,15 +398,18 @@
     const dots = w.querySelector('.lcdots'), res = w.querySelector('.lcresult');
     dots.innerHTML = '<i></i>'.repeat(50);
     const ds = [...dots.children];
-    const fmt = d => d < 14 ? `${Math.ceil(d)} days` : d < 120 ? `about ${Math.round(d / 7)} weeks` : `about ${Math.round(d / 30)} months`;
+    const fmt = d => d < 1 ? 'under a day' : d < 14 ? `${Math.ceil(d)} day${Math.ceil(d) === 1 ? '' : 's'}` : d < 120 ? `about ${Math.round(d / 7)} weeks` : `about ${Math.round(d / 30)} months`;
     const draw = () => {
       const r = Number(rate.value), l = Number(lag.value);
       rateOut.textContent = r; lagOut.textContent = l;
-      const byLabel = Math.min(50, r);
-      ds.forEach((d, i) => d.classList.toggle('on', i < byLabel));
-      const days = Math.max(7, (50 / r) * 7, 3 * l);
-      let msg = `The "Learning" label clears within 7 days, when you'll have about <b>${Math.min(50, r)}</b> of the ~50 conversions. Plan on <b>${fmt(days)}</b> before judging the change.`;
-      if (days > 90) msg += ' At this volume, consider bidding to a higher-volume conversion that still predicts value, or consolidating campaigns.';
+      const progress = Math.min(50, r);
+      ds.forEach((d, i) => d.classList.toggle('on', i < progress));
+      const to50 = (50 / r) * 7, lags = 3 * l;
+      let msg = `In the first 7 days you'd expect about <b>${r}</b> conversion${r === 1 ? '' : 's'}${r >= 50 ? ', already past the ~50 mark (the dots show progress towards 50)' : ' (the dots show progress towards ~50)'}.` +
+        `<span class="lcline"><b>Days to reach ~50 conversions:</b> ${fmt(to50)}.</span>` +
+        `<span class="lcline"><b>Three conversion lags:</b> ${fmt(lags)}. Clicks inside that window may still convert, so recent days look worse than they are.</span>` +
+        `<span class="lcline">Both are rules of thumb for when a read becomes fair, not a required wait. The Learning label itself clears within 7 days.</span>`;
+      if (to50 > 90) msg += '<span class="lcline">At this volume, reaching ~50 takes months. Consider bidding to a higher-volume conversion that still predicts value, consolidating campaigns, or judging over a longer window with care.</span>';
       res.innerHTML = msg;
     };
     rate.addEventListener('input', draw); lag.addEventListener('input', draw);
@@ -455,6 +464,9 @@
       }
       return ['consultation', 'focused', ''];
     };
+    const spendForm = { s1: 'Under £5,000', s2: '£5,000 to £25,000', s3: '£25,000 to £100,000', s4: 'Over £100,000' };
+    const whenForm = { week: 'This week', month: 'This month', quarter: 'This quarter', explore: 'Just exploring' };
+    const weekFor = { review: 'A Decision Review takes ten working days, so the written Review won\'t land this week. If something has to be decided now, say so in the brief: an initial call can give you a first view while the Review runs.', advisory: 'Advisory starts with a ten-working-day Decision Review, so it won\'t be complete this week. Say your deadline in the brief and I\'ll tell you what can be done before it.', focused: 'A Focused Review takes five working days from the start, so a decision this week is tight. Say your deadline in the brief.' };
     const timing = { week: 'Consultations can usually happen within a few working days. Say your deadline in the brief.', month: 'That timing works well. Say your deadline in the brief so the work is scheduled around it.', quarter: 'Plenty of time to plan this properly.', explore: 'No pressure: the brief just starts a conversation.' };
     const show = i => {
       at = i;
@@ -471,12 +483,16 @@
       const o = OPT[main], a = OPT[alt];
       result.querySelector('.qname').textContent = o.name;
       result.querySelector('.qprice').textContent = o.price;
-      result.querySelector('.qwhy').textContent = why + ' ' + (timing[answers.when] || '');
+      result.querySelector('.qwhy').textContent = why + ' ' + ((answers.when === 'week' && weekFor[main]) || timing[answers.when] || '');
       result.querySelector('.qgets').innerHTML = o.gets.map(g => `<li>${g}</li>`).join('');
       const cta = result.querySelector('.qcta');
-      cta.href = '/contact/?option=' + o.slug;
+      const qs = new URLSearchParams({ option: o.slug });
+      if (spendForm[answers.spend]) qs.set('spend', spendForm[answers.spend]);
+      if (whenForm[answers.when]) qs.set('timing', whenForm[answers.when]);
+      cta.href = '/contact/?' + qs.toString();
       cta.textContent = 'Start a brief for this';
-      result.querySelector('.qalt').innerHTML = a ? `Also worth a look: <a href="/contact/?option=${a.slug}">${a.name} (${a.price})</a>` : '';
+      const qa = new URLSearchParams(qs); if (a) qa.set('option', a.slug);
+      result.querySelector('.qalt').innerHTML = a ? `Also worth a look: <a href="/contact/?${qa.toString()}">${a.name} (${a.price})</a>` : '';
       show(steps.length);
     };
     steps.forEach((s, i) => s.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {

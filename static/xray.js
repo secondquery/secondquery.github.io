@@ -104,7 +104,7 @@
     share: { tests: ['search impr. share', 'impr. share (%)', 'impression share', 'search impression share', 'impr. share'], label: 'Search impr. share', unlocks: 'combining impression share accurately across days' },
     date: { tests: ['day', 'date', 'week', 'month', 'quarter', 'gregorian date', 'time period', 'week (mon - sun)', 'week (sun - sat)', 'week (monday)'], label: 'Day / week (optional)', unlocks: 'spotting trends across the period' },
     term: { tests: ['search term', 'search query'], label: 'Search term' },
-    match: { tests: ['match type', 'search term match type', 'delivered match type', 'keyword match type', 'bid match type'], label: 'Match type', unlocks: 'measuring AI Mode exposure' }
+    match: { tests: ['match type', 'search term match type', 'delivered match type', 'keyword match type', 'bid match type'], label: 'Match type', unlocks: 'showing how much spend runs on broad match' }
   };
   const WANT = {
     campaigns: { required: ['campaign', 'cost', 'conv'], recommended: ['type', 'value', 'lost', 'rank', 'share', 'impr', 'date'] },
@@ -344,9 +344,9 @@
         if (isFinite(ratio) && ratio >= 2) add({
           id: 'brand', family: 'brand', sig: (bCost + nbCost) / tot, mag: Math.log2(ratio) / 3, evidence: brand.some(x => x.conf === 'high') ? 0.9 : 0.7, distinct: 0.8,
           head: 'Brand and non-brand are telling very different stories',
-          metrics: [`Brand: ${fmtEff(be, uv)}`, `Non-brand: ${fmtEff(ne, uv)}`],
+          metrics: [`Brand: ${fmtEff(be, uv)}`, `All non-brand performance campaigns: ${fmtEff(ne, uv)}`],
           text: `${uv ? `Brand search is returning around ${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)} times what the rest of your performance activity does` : `Brand search is converting at around ${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)} times lower cost than the rest of your performance activity`}. Looking at the overall account average alone may be hiding part of the picture, and brand results raise their own question about how much of that demand would have arrived anyway.`,
-          note: brand.some(x => x.conf === 'high') ? '' : 'Brand campaigns identified from their names.'
+          note: (brand.some(x => x.conf === 'high') ? '' : 'Brand campaigns identified from their names. ') + 'The non-brand figure combines every non-brand performance campaign (Search, Performance Max, Shopping and Demand Gen where present), including any with no conversions.'
         });
       }
 
@@ -629,8 +629,8 @@
       // headline figures
       tiles.push({ l: 'Spend', v: gbp(C.cost), n: `${int(C.n)} campaign${C.n === 1 ? '' : 's'}${C.dates.length ? ` · ${C.dates.length > 1 ? Math.round((C.dates[C.dates.length - 1] - C.dates[0]) / 864e5) + 1 + ' days' : '1 day'}` : ''}` });
       tiles.push({ l: 'Conversions', v: int(C.conv), n: C.value > 0 ? `${gbp(C.value)} conversion value` : 'as reported in the file' });
-      tiles.push(C.useValue ? { l: 'Return on ad spend', v: (C.value / C.cost).toFixed(2) + 'x', n: isFinite(C.base) ? `non-brand: ${C.base.toFixed(2)}x` : '' }
-        : { l: 'Cost per conversion', v: C.conv ? gbp2(C.cost / C.conv) : '-', n: isFinite(C.base) ? `non-brand: ${gbp2(C.base)}` : '' });
+      tiles.push(C.useValue ? { l: 'Return on ad spend', v: (C.value / C.cost).toFixed(2) + 'x', n: isFinite(C.base) ? `non-brand, all channels: ${C.base.toFixed(2)}x` : '' }
+        : { l: 'Cost per conversion', v: C.conv ? gbp2(C.cost / C.conv) : '-', n: isFinite(C.base) ? `non-brand, all channels: ${gbp2(C.base)}` : '' });
       if (GI.brand.cost > 0 && totRes > 0) tiles.push({ l: `Brand share of ${resName}`, v: pct1(res(GI.brand) / totRes), n: `from ${pct1(GI.brand.cost / C.cost)} of spend` });
       const isRows = C.list.filter(x => IS_OK.has(x.channel) && isFinite(x.lost));
       if (isRows.length) {
@@ -661,8 +661,8 @@
         const better = x => C.useValue ? effOf(x) >= C.base : effOf(x) <= C.base;
         const nb = withRes.filter(x => x.grp !== 'brand');
         const beat = nb.filter(better).length;
-        const title = isFinite(C.base) && nb.length ? `${beat} of ${nb.length} non-brand campaign${nb.length > 1 ? 's' : ''} beat the non-brand average` : (C.useValue ? 'Return on ad spend by campaign' : 'Cost per conversion by campaign');
-        const sub = `${C.useValue ? 'Return on ad spend (conversion value ÷ spend). Longer is better.' : 'Cost per conversion. Shorter is better.'}${isFinite(C.base) ? ` The line marks the non-brand average of ${fmtE(C.base)}.` : ''} Colours show the channel.`;
+        const title = isFinite(C.base) && nb.length ? `${beat} of ${nb.length} non-brand campaign${nb.length > 1 ? 's' : ''} beat the all-channel non-brand average` : (C.useValue ? 'Return on ad spend by campaign' : 'Cost per conversion by campaign');
+        const sub = `${C.useValue ? 'Return on ad spend (conversion value ÷ spend). Longer is better.' : 'Cost per conversion. Shorter is better.'}${isFinite(C.base) ? ` The line marks the average for all non-brand performance campaigns together (every channel shown, including any with no conversions): ${fmtE(C.base)}.` : ''} Colours show the channel.`;
         let body = hbars(withRes.map(x => ({ label: x.name, w: effOf(x) / vmax, c: G[x.grp].c, val: fmtE(effOf(x)), tip: `${x.name} · ${fmtE(effOf(x))} · ${gbp(x.cost)} spend · ${C.useValue ? gbp(x.value) + ' value' : int(x.conv) + ' conversions'}` })), isFinite(C.base) ? C.base / vmax : null);
         const usedG = GROUPS.filter(g => withRes.some(x => x.grp === g.k));
         body += legend(usedG);
@@ -725,13 +725,13 @@
         { v: T.hidden, c: '--cx', dk: true, label: 'Not shown by Google ("Other search terms")', fmt: gbp(T.hidden) },
         { v: zeroNB, c: '--hl', label: 'Other searches with no conversions', fmt: gbp(zeroNB) }
       ];
-      cards.push(card(`${pct1(zeroNB / T.cost)} of search term spend went on non-brand searches with no conversions`, 'Where search term spend went over the period. Some spend with no conversions is normal: the question is whether it\'s the right kind.',
+      cards.push(card(`${pct1(zeroNB / T.cost)} of search term spend went on non-brand searches with zero recorded conversions`, 'Share of all spend in the search terms report, including terms Google doesn\'t show. Where search term spend went over the period. Some spend with no conversions is normal: the question is whether it\'s the right kind.',
         segBar(parts, 'Search term spend') + legend(parts.filter(p => p.v > 0)),
         tbl(['Group', 'Spend', 'Share'], parts.filter(p => p.v > 0).map(p => [p.label, gbp(p.v), pct1(p.v / T.cost)])), true));
       const topZero = T.list.filter(x => x.conv < 0.5).sort((a, b) => b.cost - a.cost).slice(0, 8);
       if (topZero.length >= 2) {
         const m = topZero[0].cost;
-        cards.push(card('The searches costing most with nothing to show', 'Search terms with spend but no conversions, by spend. Worth checking against your negative keywords.',
+        cards.push(card('The searches costing most with zero recorded conversions', 'Search terms with spend and zero recorded conversions in this export, by spend. Worth checking against your negative keywords.',
           hbars(topZero.map(x => ({ label: x.term, w: x.cost / m, c: '--hl', val: gbp(x.cost), tip: `"${x.term}" · ${gbp(x.cost)} · no conversions` }))),
           tbl(['Search term', 'Spend', 'Conversions'], topZero.map(x => [x.term, gbp(x.cost), '0'])), true));
       }
@@ -822,7 +822,7 @@
     $('#xr-label').textContent = state.sample ? 'Sample data' : (state.names.join(' + ') || 'Your account');
     const text = ['Second Query Account X-ray' + (state.sample ? ' (sample data)' : ''), period ? 'Period: ' + period : '', lead, tiles.map(t => `${t[0]}: ${t[1]}`).join(' | '), '', 'What caught our attention:', ...picks.map((p, i) => `${i + 1}. ${p.head} (${(p.metrics || []).join('; ')}). ${p.text}`)].filter(x => x !== null).join('\n');
     state.summary = text;
-    $('#xr-talk').href = 'mailto:sam@secondquery.com?subject=' + encodeURIComponent('Account X-ray results') + '&body=' + encodeURIComponent(text + '\n\nWhat I would like to understand better:\n');
+    $('#xr-talk').href = 'mailto:sam@secondquery.com?subject=' + encodeURIComponent('Account X-ray results') + '&body=' + encodeURIComponent(text + '\n\nMy question for Sam (edit this line): ');
     document.dispatchEvent(new CustomEvent('xray:ready'));
     out.hidden = false;
     reset.hidden = false;
